@@ -158,7 +158,7 @@ const [showWelcomeBot, setShowWelcomeBot] = useState(() => {
         : `${eventData.logo}`;
       setLogoImage(fullLogoUrl);
     } else {
-      setLogoImage('/logo.jpg');
+      setLogoImage('/logo2.png');
     }
 
     // Notes

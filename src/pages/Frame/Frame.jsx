@@ -52,7 +52,7 @@ function Frame() {
     const fetchFrames = async () => {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL}/frames?id_admin=${id_admin}&id_topic=${id_topic}&cuts=${cut}`
+          `${import.meta.env.VITE_API_BASE_URL}/frames-client?id_admin=${id_admin}&id_topic=${id_topic}&cuts=${cut}`
         );
         const result = await response.json();
 

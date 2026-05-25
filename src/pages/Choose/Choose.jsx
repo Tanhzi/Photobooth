@@ -82,7 +82,7 @@ const Choose = () => {
     setPrintStatus('Đang chuẩn bị in...');
 
     try {
-      const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000'; 
       const WS_URL = API_URL.replace(/^http/, 'ws');
       
       console.log(`[PRINTER] Connecting to WebSocket: ${WS_URL}`);

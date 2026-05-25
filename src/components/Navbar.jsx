@@ -259,7 +259,7 @@ const Navbar = ({ sidebarCollapsed, onToggleSidebar }) => {
           <div className="brand-logo">
             <a>
               <img
-                src="/logo.jpg"
+                src="/logo2.png"
                 alt="Logo"
                 style={{
                   width: '85px',

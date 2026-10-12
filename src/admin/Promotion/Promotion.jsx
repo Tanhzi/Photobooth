@@ -1,10 +1,11 @@
 // src/admin/Page/Promotion/Promotion.jsx
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import  { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './Promotion.css';
+import { apiGet, apiPost, apiPut, apiDelete, invalidateCache } from '../../api';
 
 const Promotion = () => {
-    const [error, setError] = useState('');
+    const [, ] = useState('');
     const [discounts, setDiscounts] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [filter, setFilter] = useState('all');
@@ -32,7 +33,7 @@ const Promotion = () => {
     // === XÓA HÀNG LOẠT ===
     const [selectedIds, setSelectedIds] = useState([]);
     const [selectAllGlobal, setSelectAllGlobal] = useState(false);
-    const [totalDiscounts, setTotalDiscounts] = useState(0);
+    const [, setTotalDiscounts] = useState(0);
 
     // Phân trang - 10 ITEMS
     const [currentPage, setCurrentPage] = useState(1);
@@ -41,7 +42,6 @@ const Promotion = () => {
     const filterRef = useRef(null);
     const [showFilterMenu, setShowFilterMenu] = useState(false);
 
-    const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
     // Đóng menu khi click bên ngoài
     useEffect(() => {
@@ -59,10 +59,18 @@ const Promotion = () => {
     const fetchDiscounts = async () => {
         if (!id_admin) return;
         try {
-            const response = await fetch(`${API_URL}/get-promotion?admin_id=${id_admin}`);
+            const response = await apiGet('/get-promotion');
+            if (!response.ok) {
+                console.error('Lỗi tải danh sách khuyến mãi:', await response.text());
+                return;
+            }
             const data = await response.json();
-            setDiscounts(data || []);
-            setTotalDiscounts(data.length || 0);
+            if (!Array.isArray(data)) {
+                console.error('Dữ liệu không đúng định dạng:', data);
+                return;
+            }
+            setDiscounts(data);
+            setTotalDiscounts(data.length);
         } catch (error) {
             console.error("Failed to fetch discounts:", error);
         }
@@ -151,9 +159,10 @@ const Promotion = () => {
 
         try {
             const promises = selectedIds.map(id =>
-                fetch(`${API_URL}/de-promotion/${id}`, { method: 'DELETE' })
+                apiDelete(`/de-promotion/${id}`)
             );
             await Promise.all(promises);
+            invalidateCache('/get-promotion');
             alert(`Đã xóa thành công ${selectedIds.length} mã giảm giá!`);
             setSelectedIds([]);
             setSelectAllGlobal(false);
@@ -166,10 +175,11 @@ const Promotion = () => {
     const handleDelete = async (id) => {
         if (!window.confirm("Bạn có chắc chắn muốn xoá mã này?")) return;
         try {
-            const response = await fetch(`${API_URL}/de-promotion/${id}`, { method: 'DELETE' });
-            if (response.ok) {
-                setDiscounts(prev => prev.filter(d => d.id !== id));
-            }
+      const response = await apiDelete(`/de-promotion/${id}`);
+      if (response.ok) {
+        invalidateCache('/get-promotion');
+        setDiscounts(prev => prev.filter(d => d.id !== id));
+      }
         } catch (error) {
             console.error("Error deleting discount:", error);
         }
@@ -182,15 +192,12 @@ const Promotion = () => {
         }
 
         try {
-            const response = await fetch(`${API_URL}/add-promotion`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...newDiscount, id_admin }),
-            });
+      const response = await apiPost('/add-promotion', { ...newDiscount });
 
-            const result = await response.json();
-            if (result.status === 'success') {
-                fetchDiscounts();
+      const result = await response.json();
+      if (result.status === 'success') {
+        invalidateCache('/get-promotion');
+        fetchDiscounts();
                 alert('Mã giảm giá đã được tạo thành công!');
                 onClose();
             } else {
@@ -203,15 +210,12 @@ const Promotion = () => {
 
     const handleEdit = async (updatedDiscount) => {
         try {
-            const response = await fetch(`${API_URL}/promotion/${updatedDiscount.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedDiscount),
-            });
+      const response = await apiPut(`/promotion/${updatedDiscount.id}`, updatedDiscount);
 
-            const result = await response.json();
-            if (result.status === 'success') {
-                setDiscounts(prev => prev.map(d => d.id === updatedDiscount.id ? { ...d, ...updatedDiscount } : d));
+      const result = await response.json();
+      if (result.status === 'success') {
+        invalidateCache('/get-promotion');
+        setDiscounts(prev => prev.map(d => d.id === updatedDiscount.id ? { ...d, ...updatedDiscount } : d));
                 alert('Cập nhật thành công!');
                 onClose();
             } else {

@@ -13,7 +13,7 @@ function Appclien() {
   const location = useLocation();
   const [notes, setNotes] = useState([
     'Máy sẽ chụp tự động sau mỗi 10s',
-    'Nếu là lần đầu đến với Memory booth\nHãy liên hệ nhân viên để được hỗ trợ',
+    'Nếu là lần đầu đến với Photobooth\nHãy liên hệ nhân viên để được hỗ trợ',
     'Máy sẽ không trả lại tiền thừa, hãy liên hệ chúng mình để đổi tiền nhé!'
   ]);
 
@@ -40,7 +40,7 @@ const [showWelcomeBot, setShowWelcomeBot] = useState(() => {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id, id_admin, id_topic } = auth || {};
 
   // Redirect nếu chưa đăng nhập
@@ -180,7 +180,7 @@ const [showWelcomeBot, setShowWelcomeBot] = useState(() => {
   }
 
   const handleClick = () => {
-    navigate('/Crecuts');
+    navigate('/ChoosePackage');
   };
 
   return (

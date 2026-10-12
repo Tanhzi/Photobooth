@@ -1,16 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import  { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import './Camera.css';
+import { apiGet, apiPost, invalidateCache } from '../../api';
 
 const Camera = () => {
-    const location = useLocation();
     const getAuth = () => {
         const saved = localStorage.getItem('auth');
         return saved ? JSON.parse(saved) : null;
     };
 
-    const [auth, setAuth] = useState(getAuth());
+    const [auth, ] = useState(getAuth());
     const { id: idAdmin, username } = auth || {};
 
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -29,7 +28,7 @@ const Camera = () => {
     useEffect(() => {
         if (!idAdmin) return; // tránh gọi API nếu chưa có idAdmin
 
-        fetch(`${import.meta.env.VITE_API_BASE_URL}/camera?id_admin=${idAdmin}`)
+        apiGet(`/camera?id_admin=${idAdmin}`)
             .then(response => response.json())
             .then(data => {
                 setSettings({
@@ -65,8 +64,7 @@ const Camera = () => {
 
     // Hàm gửi dữ liệu cập nhật qua API
     const handleSaveChanges = () => {
-        const postData = {
-            id_admin: idAdmin,
+            const postData = {
             time1: settings.timeImage1,
             time2: settings.timeImage2,
             video: settings.isVideoOn ? 1 : 0,
@@ -74,17 +72,12 @@ const Camera = () => {
             time_run: settings.timeRun,
         };
 
-        fetch(`${import.meta.env.VITE_API_BASE_URL}/camera`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams(postData),
-        })
+        apiPost('/camera', postData)
             .then(response => response.json())
             .then(data => {
                 console.log('Update response:', data);
                 if (data.status === 'success') {
+                    invalidateCache('/camera');
                     alert('Cập nhật thành công!');
                 } else {
                     alert('Lỗi: ' + (data.message || 'Không thể lưu cài đặt'));

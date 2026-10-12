@@ -1,6 +1,7 @@
 // src/components/ChatBotWidget.jsx
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import './ChatBotWidget.css';
+import { getAuthHeaders } from '../api';
 
 const ChatBotWidget = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -19,14 +20,15 @@ const ChatBotWidget = () => {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputMessage }),
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ question: inputMessage }),
       });
 
       const data = await response.json();
 
-      if (response.ok && data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+      if (response.ok && data.answer) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.answer }]);
       } else {
         throw new Error(data.error || 'Không thể kết nối AI lúc này.');
       }

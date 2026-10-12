@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import gifshot from 'gifshot';
 import './qr.css';
 import Chatbot from '../../components/Chatbot';
+import { apiPut, getAuthHeaders } from '../../api';
 import { useCountdown } from "../../contexts/CountdownContext";
 
 const generateSessionId = () => {
@@ -20,7 +21,7 @@ function Qr() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin } = auth || {};
 
   const [previewQr, setPreviewQr] = useState(null);
@@ -36,7 +37,7 @@ function Qr() {
 
   // === BÀN PHÍM ẢO — GIỐNG HẾT DOWNLOAD.JSX ===
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const [isCaps, setIsCaps] = useState(false);
+  const [isCaps, ] = useState(false);
   const keyboardRef = useRef(null);
   const emailInputRef = useRef(null);
 
@@ -245,7 +246,8 @@ if (config.video === 1) {
     try {
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/media`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           files: filesToUpload,
           id_qr: id_qr,
@@ -261,12 +263,17 @@ if (config.video === 1) {
 
   const sendQrEmail = async (email, id_qr) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_BASE_URL}/send-qr-email`, {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/send-qr-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ email, id_qr: id_qr }),
       });
-      setEmailSent(true);
+      if (response.ok) {
+        setEmailSent(true);
+      } else {
+        console.error('Gửi email QR thất bại:', await response.text());
+      }
     } catch (err) {
       console.error('Gửi email QR thất bại:', err);
     }
@@ -293,7 +300,8 @@ const sendOriginalImagesEmail = async (email, images, gifData = null) => {
     const id_qr = generateSessionId();
     const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/send-original-images-email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
+      credentials: 'include',
       body: JSON.stringify({ email, id_qr: id_qr, images: validImages }),
     });
 
@@ -312,11 +320,7 @@ const sendOriginalImagesEmail = async (email, images, gifData = null) => {
 
   const updateIdFrameAndIdQr = async (id, id_frame, id_qr, email = null) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/update-pay`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, id_frame, id_qr, email }),
-      });
+      const response = await apiPut('/update-pay', { id, id_frame, id_qr, email });
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Cập nhật thất bại');
@@ -411,8 +415,8 @@ const sendOriginalImagesEmail = async (email, images, gifData = null) => {
         return;
       }
 
-      // Chuyển sang trang in (Choose.jsx)
-      navigate('/choose', {
+      // Chuyển sang trang in (Print.jsx)
+      navigate('/Print', {
         state: {
           compositeImage: finalImageToSend, // Đây giờ là PNG chất lượng cao
           qrImage: qrDataUrl,
@@ -435,7 +439,7 @@ const sendOriginalImagesEmail = async (email, images, gifData = null) => {
         if (videoConfig?.video === 1 && gifBase64) {
           filesToUpload.push({ data: gifBase64, type: 'gif' });
         }
-        uploadCollection(filesToUpload, id_qr, downloadLink);
+        await uploadCollection(filesToUpload, id_qr, downloadLink);
         if (emailTrimmed) {
           sendQrEmail(emailTrimmed, id_qr);
         }

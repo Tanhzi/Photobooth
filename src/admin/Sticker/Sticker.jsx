@@ -1,7 +1,8 @@
 // src/admin/Page/Sticker/Sticker.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './Sticker.css';
+import { apiGet, apiDelete, invalidateCache } from '../../api';
 
 const Sticker = () => {
   const getAuth = () => {
@@ -34,7 +35,6 @@ const Sticker = () => {
   const [editFormData, setEditFormData] = useState({ id_topic: '', type: '', file: null });
 
   const itemsPerPage = 10;
-  const API_URL = import.meta.env.VITE_API_BASE_URL ;
 
   const filterWrapperRef = useRef(null);
 
@@ -42,11 +42,11 @@ const Sticker = () => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/stickers?id_admin=${id_admin}&page=${page}&limit=${itemsPerPage}`;
+      let url = `/stickers?page=${page}&limit=${itemsPerPage}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
       if (filterType && filterType !== 'all') url += `&filter_type=${encodeURIComponent(filterType)}`;
 
-      const res = await fetch(url);
+      const res = await apiGet(url);
       const data = await res.json();
       if (data.status === 'success') {
         setStickers(data.data || []);
@@ -75,7 +75,7 @@ const Sticker = () => {
 
   const fetchEvents = async () => {
     try {
-      const res = await fetch(`${API_URL}/events?id_admin=${id_admin}`);
+      const res = await apiGet('/events');
       const data = await res.json();
       setEvents(data.data || []);
     } catch (err) {
@@ -121,11 +121,11 @@ const Sticker = () => {
       try {
         let allIds = [];
         for (let page = 1; page <= totalPages; page++) {
-          let url = `${API_URL}/stickers?id_admin=${id_admin}&page=${page}&limit=1000`;
+          let url = `/stickers?page=${page}&limit=1000`;
           if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
           if (filterType && filterType !== 'all') url += `&filter_type=${encodeURIComponent(filterType)}`;
 
-          const res = await fetch(url);
+          const res = await apiGet(url);
           const data = await res.json();
           if (data.status === 'success') {
             allIds = allIds.concat(data.data.map(s => s.id));
@@ -164,9 +164,10 @@ const Sticker = () => {
 
     try {
       const promises = selectedIds.map(id =>
-        fetch(`${API_URL}/stickers/${id}`, { method: 'DELETE' })
+        apiDelete(`/stickers/${id}`)
       );
       await Promise.all(promises);
+      invalidateCache('/stickers');
       alert(`Đã xóa thành công ${selectedIds.length} sticker!`);
       setSelectedIds([]);
       setSelectAllGlobal(false);
@@ -189,14 +190,17 @@ const Sticker = () => {
     e.preventDefault();
     if (addForm.files.length === 0) return alert('Chọn ít nhất 1 file!');
     const formData = new FormData();
-    formData.append('id_admin', id_admin);
+    const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+    const token = authObj.token;
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
     if (addForm.id_topic) formData.append('id_topic', addForm.id_topic);
     if (addForm.type) formData.append('type', addForm.type);
     addForm.files.forEach(f => formData.append('stickers[]', f));
 
     try {
-      const res = await fetch(`${API_URL}/stickers`, { method: 'POST', body: formData });
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/stickers`, { method: 'POST', headers: authHeaders, credentials: 'include', body: formData });
       const result = await res.json();
+      invalidateCache('/stickers');
       alert(result.message || 'Thành công!');
       setShowAddModal(false);
       fetchStickers(currentPage);
@@ -218,17 +222,23 @@ const Sticker = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData();
+    const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+    const token = authObj.token;
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
     formData.append('_method', 'PUT');
     if (editFormData.id_topic !== String(selectedSticker.id_topic || '')) formData.append('id_topic', editFormData.id_topic);
     if (editFormData.type !== selectedSticker.type) formData.append('type', editFormData.type);
     if (editFormData.file) formData.append('sticker', editFormData.file);
 
     try {
-      const res = await fetch(`${API_URL}/stickers/${selectedSticker.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/stickers/${selectedSticker.id}`, {
         method: 'POST',
+        headers: authHeaders,
+        credentials: 'include',
         body: formData
       });
       const result = await res.json();
+      invalidateCache('/stickers');
       alert(result.message || 'Cập nhật thành công!');
       setShowEditModal(false);
       fetchStickers(currentPage);
@@ -240,8 +250,9 @@ const Sticker = () => {
   const handleDelete = async (id) => {
     if (!confirm('Xóa vĩnh viễn sticker này?')) return;
     try {
-      const res = await fetch(`${API_URL}/stickers/${id}`, { method: 'DELETE' });
+      const res = await apiDelete(`/stickers/${id}`);
       if (res.ok) {
+        invalidateCache('/stickers');
         alert('Xóa thành công!');
         fetchStickers(currentPage);
       }

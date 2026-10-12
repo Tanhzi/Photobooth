@@ -6,7 +6,7 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   server: {
-    host: '0.0.0.0', // Lắng nghe tất cả IP
-    port: 5173,      // Cổng hiện tại
+    host: '0.0.0.0',
+    port: 5173,
   },
 });

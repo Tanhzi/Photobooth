@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Lottie from 'lottie-react';
 import Chatbot from '../../components/Chatbot';
-import './Download.css';
+import './Feedback.css';
 
-const Download = () => {
+const Feedback = () => {
   const navigate = useNavigate();
 
   // === CÁC STATE CŨ ===
@@ -436,4 +436,4 @@ const Download = () => {
   );
 };
 
-export default Download;
+export default Feedback;

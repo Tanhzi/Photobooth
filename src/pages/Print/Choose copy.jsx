@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Chatbot from '../../components/Chatbot';
-import './Choose.css';
+import './Print.css';
 
-const Choose = () => {
+const Print = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -116,7 +116,7 @@ const Choose = () => {
   }, [compositeImage, size, cut]);
 
   const handleFinish = () => {
-    navigate('/Download');
+    navigate('/Feedback');
   };
 
   const handleRetryPrint = () => {
@@ -167,4 +167,4 @@ const Choose = () => {
   );
 };
 
-export default Choose;
+export default Print;

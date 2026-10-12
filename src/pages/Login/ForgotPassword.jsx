@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import  { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AuthCommon.css';
 
 function ForgotPassword() {
   const [step, setStep] = useState(1); // 1: email, 2: OTP, 3: new password
   const [email, setEmail] = useState('');
-  const [isEmailLocked, setIsEmailLocked] = useState(false);
+  const [isEmailLocked, ] = useState(false);
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -14,7 +14,7 @@ function ForgotPassword() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, ] = useState(true);
   const [message, setMessage] = useState('');
   const [isSendingOtp, setIsSendingOtp] = useState(false);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);

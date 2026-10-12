@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Photo.css';
 import Chatbot from '../../components/Chatbot';
@@ -10,7 +10,7 @@ function Photo() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin } = auth || {};
 
   const [shootCountdown, setShootCountdown] = useState(0); // đếm ngược trước mỗi lần chụp
@@ -42,8 +42,6 @@ function Photo() {
   const {
     size,
     cut,
-    id_admin: idAdmin,
-    id_topic: idTopic,
     selectedFrame,
     selectedFrameId,
     price,

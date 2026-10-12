@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './pages/Login/AuthCommon.css';
 
@@ -73,6 +73,8 @@ const handleLogin = async (e) => {
       headers: {
         'Content-Type': 'application/json',
       },
+      // Gửi/nhận cookie httpOnly (JWT) — token KHÔNG lưu trong localStorage
+      credentials: 'include',
       body: JSON.stringify({ username, password }),
     });
 
@@ -89,6 +91,7 @@ const handleLogin = async (e) => {
     console.log('Phản hồi từ server:', data);
 
     if (response.ok && data.status === 'success') {
+      // Chỉ lưu thông tin người dùng — JWT nằm trong cookie httpOnly phía server
       const auth = {
         id: data.id,
         username: data.username,

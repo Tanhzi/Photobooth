@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import Navbar from '../../components/Navbar';
 import './Pricecut.css';
+import { apiGet, apiPost, invalidateCache } from '../../api';
 
 const Pricecut = () => {
     const getAuth = () => {
@@ -8,11 +9,11 @@ const Pricecut = () => {
         return saved ? JSON.parse(saved) : null;
     };
 
-    const [auth, setAuth] = useState(getAuth());
+    const [auth, ] = useState(getAuth());
     const { id: id_admin, username } = auth || {};
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
-    const [data, setData] = useState(null);
+    const [, setData] = useState(null);
     const [selectedSize, setSelectedSize] = useState('small');
     const [editedPairDataSmall, setEditedPairDataSmall] = useState([]);
     const [editedPairDataBig, setEditedPairDataBig] = useState([]);
@@ -31,7 +32,7 @@ const Pricecut = () => {
     useEffect(() => {
         if (!id_admin) return;
 
-        fetch(`${import.meta.env.VITE_API_BASE_URL}/size?id_admin=${id_admin}`)
+        apiGet('/size')
             .then((response) => response.json())
             .then((result) => {
                 setData(result);
@@ -116,20 +117,14 @@ const Pricecut = () => {
         ]).flat();
 
         const payload = {
-            id_admin: id_admin,
             size1: flatSizeSmall,
             size2: flatSizeBig
         };
 
-        fetch(`${import.meta.env.VITE_API_BASE_URL}/size`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        })
+        apiPost('/size', payload)
             .then(response => response.json())
             .then(result => {
+                invalidateCache('/size');
                 console.log('Update successful:', result);
                 alert('Cập nhật thành công!');
                 setErrors({}); // Xóa lỗi sau khi lưu thành công

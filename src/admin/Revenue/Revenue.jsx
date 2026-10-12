@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import  { useEffect, useRef, useState } from 'react';
 import Navbar from '../../components/Navbar';
 import ApexCharts from 'apexcharts';
 import './Revenue.css';
+import { apiGet } from '../../api';
 
 const Revenue = () => {
     const chartRef = useRef(null);
@@ -17,11 +18,12 @@ const Revenue = () => {
         const saved = localStorage.getItem('auth');
         return saved ? JSON.parse(saved) : null;
     };
-    const [auth, setAuth] = useState(getAuth());
+    const [auth, ] = useState(getAuth());
     const { id: id_admin, username } = auth || {};
 
     // ===== GLOBAL CLIENT FILTER =====
     const [allClients, setAllClients] = useState([]);
+    const [clientNames, setClientNames] = useState({}); // id_client -> tên máy (BE trả client_name)
     const [selectedClients, setSelectedClients] = useState([]); // 🌟 DUY NHẤT
 
     // ===== FILTER STATES =====
@@ -43,11 +45,17 @@ const Revenue = () => {
     const fetchChartData = async () => {
         if (!id_admin) return;
         try {
-            const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/summary`);
-            url.searchParams.append('id_admin', id_admin);
-
-            const response = await fetch(url);
+            const response = await apiGet('/summary');
             let data = await response.json();
+
+            // Ghi tên máy từ client_name (BE join users) để bảng + bộ lọc hiển thị tên thay vì số
+            const names = {};
+            data.forEach(item => {
+                if (item.client_name) names[item.id_client] = item.client_name;
+            });
+            if (Object.keys(names).length > 0) {
+                setClientNames(prev => ({ ...prev, ...names }));
+            }
 
             // 🔥 Lọc theo selectedClients ở frontend
             if (selectedClients.length > 0) {
@@ -82,12 +90,7 @@ const Revenue = () => {
     const fetchDateRangeData = async () => {
         if (!fromDate || !toDate || !id_admin) return;
         try {
-            const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/range`);
-            url.searchParams.append('from_date', fromDate);
-            url.searchParams.append('to_date', toDate);
-            url.searchParams.append('id_admin', id_admin);
-
-            const response = await fetch(url);
+            const response = await apiGet(`/range?from_date=${fromDate}&to_date=${toDate}`);
             let data = await response.json();
 
             if (selectedClients.length > 0) {
@@ -103,12 +106,7 @@ const Revenue = () => {
     const fetchMonthData = async () => {
         if (!id_admin) return;
         try {
-            const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/month`);
-            url.searchParams.append('month', selectedMonth);
-            url.searchParams.append('year', selectedYearForMonth);
-            url.searchParams.append('id_admin', id_admin);
-
-            const response = await fetch(url);
+            const response = await apiGet(`/month?month=${selectedMonth}&year=${selectedYearForMonth}`);
             let data = await response.json();
 
             if (selectedClients.length > 0) {
@@ -124,12 +122,7 @@ const Revenue = () => {
     const fetchQuarterData = async () => {
         if (!id_admin) return;
         try {
-            const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/quarter`);
-            url.searchParams.append('quarter', selectedQuarter);
-            url.searchParams.append('year', selectedYearForQuarter);
-            url.searchParams.append('id_admin', id_admin);
-
-            const response = await fetch(url);
+            const response = await apiGet(`/quarter?quarter=${selectedQuarter}&year=${selectedYearForQuarter}`);
             let data = await response.json();
 
             if (selectedClients.length > 0) {
@@ -145,11 +138,7 @@ const Revenue = () => {
     const fetchYearData = async () => {
         if (!id_admin) return;
         try {
-            const url = new URL(`${import.meta.env.VITE_API_BASE_URL}/year`);
-            url.searchParams.append('year', selectedYearForYear);
-            url.searchParams.append('id_admin', id_admin);
-
-            const response = await fetch(url);
+            const response = await apiGet(`/year?year=${selectedYearForYear}`);
             let data = await response.json();
 
             if (selectedClients.length > 0) {
@@ -208,7 +197,7 @@ const Revenue = () => {
             <>
                 {data.map((row, index) => (
                     <tr key={`${row.id_client}-${row.cuts}-${index}`}>
-                        <td>{row.id_client}</td>
+                        <td>{row.client_name || row.id_client}</td>
                         <td>{row.cuts}</td>
                         <td>{Number(row.discount_price).toLocaleString('vi-VN')}</td>
                         <td>{Number(row.total_revenue).toLocaleString('vi-VN')}</td>
@@ -345,7 +334,7 @@ const Revenue = () => {
                                                 toggleClient(client);
                                             }}
                                         >
-                                            {client}
+                                            {clientNames[client] || `Máy ${client}`}
                                         </div>
                                     ))}
                                 </div>

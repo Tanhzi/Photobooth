@@ -1,121 +1,43 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import  { useEffect, useRef, useState } from 'react';
 import './Appadmin.css';
 import Navbar from '../../components/Navbar';
 import ApexCharts from 'apexcharts';
+import { useCachedApiGet } from '../../contexts/DataCacheContext';
 
 const Appadmin = () => {
-  const navigate = useNavigate();
 
   const getAuth = () => {
     const saved = localStorage.getItem('auth');
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const auth = getAuth();
   const { id, username } = auth || {}; 
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [machineCount, setMachineCount] = useState(0);
-  const [customerCount, setCustomerCount] = useState(0);
-  const [totalIncome, setTotalIncome] = useState('0 VND');
   const chartRef = useRef(null);
   const chartContainerRef = useRef(null);
 
+  const { data: countData } = useCachedApiGet('/count');
+  const { data: serviceData } = useCachedApiGet('/sum-price');
+  const { data: priceData } = useCachedApiGet('/price');
 
-  // === FETCH FUNCTIONS ===
-
-  const fetchMachineCount = async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/count?id_admin=${id}`);
-      if (!res.ok) return setMachineCount(0);
-      const data = await res.json();
-      setMachineCount(data.total_customers ?? 0);
-    } catch (error) {
-      console.error('Lỗi lấy số máy:', error);
-      setMachineCount(0); // fallback
-    }
-  };
-
-  const fetchServiceData = async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/sum-price?id_admin=${id}`);
-      if (!res.ok) {
-        setCustomerCount(0);
-        setTotalIncome('0 VND');
-        return;
-      }
-      const data = await res.json();
-      setCustomerCount(data.total_customers ?? 0);
-      const income = data.total_income ?? 0;
-      setTotalIncome(Number(income).toLocaleString('vi-VN') + ' VND');
-    } catch (error) {
-      console.error('Lỗi lấy dữ liệu dịch vụ:', error);
-      setCustomerCount(0);
-      setTotalIncome('0 VND');
-    }
-  };
-
-  const fetchData = async () => {
-    try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/price?id_admin=${id}`);
-      if (!res.ok) return; // không vẽ chart nếu lỗi
-
-      const data = await res.json();
-
-      // 👇 Kiểm tra nghiêm ngặt: phải là mảng
-      if (!Array.isArray(data) || data.length === 0) {
-        // Có thể clear chart hoặc giữ nguyên — ở đây ta không render gì
-        if (chartRef.current) chartRef.current.destroy();
-        return;
-      }
-
-      const sorted = [...data].sort((a, b) => {
-        if (a.year === b.year) return a.month - b.month;
-        return a.year - b.year;
-      });
-
-      const categories = sorted.map((item) =>
-        `${item.year}-${String(item.month).padStart(2, '0')}`
-      );
-      const revenueData = sorted.map((item) => Number(item.total_revenue) || 0);
-      const series = [{ name: 'Doanh thu', data: revenueData }];
-
-      renderChart(categories, series);
-    } catch (error) {
-      console.error('Lỗi lấy dữ liệu biểu đồ:', error);
-      if (chartRef.current) chartRef.current.destroy();
-    }
-  };
+  const machineCount = countData?.total_customers ?? 0;
+  const customerCount = serviceData?.total_customers ?? 0;
+  const totalIncome = (serviceData?.total_income ?? 0).toLocaleString('vi-VN') + ' VND';
 
   const renderChart = (categories, series) => {
     if (!chartContainerRef.current) return;
-
-    if (chartRef.current) {
-      chartRef.current.destroy();
-    }
+    if (chartRef.current) chartRef.current.destroy();
 
     const options = {
       chart: { type: 'line', height: 350, animations: { enabled: false } },
       stroke: { curve: 'smooth' },
       series,
       xaxis: { categories },
-      title: {
-        text: 'Doanh thu các tháng',
-        align: 'center',
-        style: { color: '#d81b60' },
-      },
-      yaxis: {
-        title: { text: 'Doanh thu' },
-        labels: {
-          formatter: (val) => val.toLocaleString('vi-VN'),
-        },
-      },
-      tooltip: {
-        y: {
-          formatter: (value) => value.toLocaleString('vi-VN') + ' VND',
-        },
-      },
+      title: { text: 'Doanh thu các tháng', align: 'center', style: { color: '#d81b60' } },
+      yaxis: { title: { text: 'Doanh thu' }, labels: { formatter: (val) => val.toLocaleString('vi-VN') } },
+      tooltip: { y: { formatter: (value) => value.toLocaleString('vi-VN') + ' VND' } },
       colors: ['#d81b60'],
     };
 
@@ -124,18 +46,26 @@ const Appadmin = () => {
   };
 
   useEffect(() => {
-    if (id) {
-      fetchMachineCount();
-      fetchServiceData();
-      fetchData();
-    }
+    if (!chartContainerRef.current) return;
+    if (chartRef.current) chartRef.current.destroy();
+
+    if (!Array.isArray(priceData) || priceData.length === 0) return;
+
+    const sorted = [...priceData].sort((a, b) => {
+      if (a.year === b.year) return a.month - b.month;
+      return a.year - b.year;
+    });
+
+    const categories = sorted.map((item) =>
+      `${item.year}-${String(item.month).padStart(2, '0')}`
+    );
+    const revenueData = sorted.map((item) => Number(item.total_revenue) || 0);
+    renderChart(categories, [{ name: 'Doanh thu', data: revenueData }]);
 
     return () => {
-      if (chartRef.current) {
-        chartRef.current.destroy();
-      }
+      if (chartRef.current) chartRef.current.destroy();
     };
-  }, [id]);
+  }, [priceData]);
 
   const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
 

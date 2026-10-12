@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './Frame.css';
 import { useCountdown } from "../../contexts/CountdownContext";
+import { apiGet } from '../../api';
 import Chatbot from '../../components/Chatbot';
 
 function Frame() {
@@ -103,7 +104,7 @@ function Frame() {
 
   useEffect(() => {
     if (!id_admin) return;
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/get-new-id?id_admin=${id_admin}`)
+    apiGet('/get-new-id')
       .then(res => res.json())
       .then(data => { if (data?.id) setLatestPaymentId(data.id); })
       .catch(err => console.error('Lỗi lấy id thanh toán:', err));
@@ -386,7 +387,7 @@ function Frame() {
                         const finalSize = baseSize * sticker.scale; 
                         finalCtx.drawImage(sImg, -finalSize/2, -finalSize/2, finalSize, finalSize);
                         finalCtx.translate(-sX, -sY);
-                    } catch (e) { }
+                    } catch (e) { /* bo qua */ }
                }
             }
             finalCtx.restore();

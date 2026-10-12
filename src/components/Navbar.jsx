@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Navbar.css';
 
@@ -18,7 +18,6 @@ const Navbar = ({ sidebarCollapsed, onToggleSidebar }) => {
   const { id, username, role } = auth || {};
   
   // Xác định vai trò: role === 2 là Admin, role === 1 là Staff
-  const isAdmin = role === 2;
   const isStaff = role === 1;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -65,6 +64,11 @@ const Navbar = ({ sidebarCollapsed, onToggleSidebar }) => {
   }, [userDropdownOpen]);
 
   const handleLogout = () => {
+    // Gọi backend xóa cookie httpOnly (best-effort, không chặn đăng xuất)
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => null);
     localStorage.removeItem('auth');
     navigate('/', { replace: true });
   };

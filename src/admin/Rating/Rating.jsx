@@ -1,7 +1,8 @@
 // src/admin/Page/Rating/Rating.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './Rating.css';
+import { apiGet, apiDelete, invalidateCache } from '../../api';
 
 const Rating = () => {
   const [auth] = useState(() => {
@@ -30,7 +31,6 @@ const Rating = () => {
   const [selectAllGlobal, setSelectAllGlobal] = useState(false);
 
   const itemsPerPage = 10;
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   // -----------------------------------------------------------------
   // FETCH ĐÁNH GIÁ
@@ -38,14 +38,14 @@ const Rating = () => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_admin}`;
+      let url = `/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_admin}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
       
       // Gửi filter param đến backend
       if (filter === 'latest') url += `&filter=today`; // Backend hiểu "today" = ngày gần nhất
       if (filter === 'recent_month') url += `&filter=month`; // Backend hiểu "month" = tháng gần nhất
 
-      const res = await fetch(url);
+      const res = await apiGet(url);
       const data = await res.json();
 
       setRatings(data.data || []);
@@ -108,12 +108,12 @@ const Rating = () => {
 
     setLoading(true);
     try {
-let url = `${API_URL}/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_admin}`;
+let url = `/ratings?page=1&limit=1000&id_admin=${id_admin}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
       if (filterType === 'latest') url += `&filter=today`;
       if (filterType === 'recent_month') url += `&filter=month`;
 
-      const res = await fetch(url);
+      const res = await apiGet(url);
       if (!res.ok) throw new Error('Lỗi server');
 
       const data = await res.json();
@@ -156,7 +156,7 @@ let url = `${API_URL}/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_a
     setLoading(true);
     try {
       const promises = selectedIds.map(id =>
-        fetch(`${API_URL}/ratings/${id}`, { method: 'DELETE' })
+        apiDelete(`/ratings/${id}`)
       );
       const results = await Promise.all(promises);
       const failed = results.filter(r => !r.ok);
@@ -167,6 +167,7 @@ let url = `${API_URL}/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_a
       }
       setSelectedIds([]);
       setSelectAllGlobal(false);
+      invalidateCache('/ratings');
       fetchRatings(currentPage, searchTerm, filterType);
     } catch (err) {
       alert('Có lỗi khi xóa hàng loạt!');
@@ -187,9 +188,10 @@ let url = `${API_URL}/ratings?page=${page}&limit=${itemsPerPage}&id_admin=${id_a
   };
   const handleDelete = async () => {
     try {
-      const res = await fetch(`${API_URL}/ratings/${selectedRating.id}`, { method: 'DELETE' });
+      const res = await apiDelete(`/ratings/${selectedRating.id}`);
       const result = await res.json();
       if (result.status === 'success') {
+        invalidateCache('/ratings');
         alert('Xóa đánh giá thành công!');
         closeModal();
         fetchRatings(currentPage, searchTerm, filterType);

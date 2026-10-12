@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import Lottie from 'lottie-react';
 import './Chatbot.css';
+import { getAuthHeaders } from '../api';
 
 const Chatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,7 +15,7 @@ const Chatbot = () => {
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const listeningTimeoutRef = useRef(null);
-  const AI_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5001';
+  const API_URL = import.meta.env.VITE_API_BASE_URL;
 
   const quickReplies = [
     { icon: '👋', text: 'Xin chào', message: 'Xin chào! Bạn có thể giới thiệu về SweetLens không?' },
@@ -98,11 +99,21 @@ const Chatbot = () => {
     setIsLoading(true);
 
     try {
-      // ✅ Gửi đúng field "question"
-      const response = await fetch(`${AI_URL}/chat`, {
+      // Lấy id_admin từ phiên đăng nhập để backend lấy dữ liệu chatbot của quán
+      let idAdmin = null;
+      try {
+        const savedAuth = localStorage.getItem('auth');
+        if (savedAuth) idAdmin = JSON.parse(savedAuth)?.id_admin ?? null;
+      } catch { /* bo qua */ }
+
+      // Lịch sử hội thoại gần nhất (trước tin nhắn hiện tại)
+      const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+
+      const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ question: messageText }), // 👈 SỬA TẠI ĐÂY
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ question: messageText, id_admin: idAdmin, history }),
       });
 
       const text = await response.text();

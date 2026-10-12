@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import gifshot from 'gifshot';
@@ -20,7 +20,7 @@ function Qr() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin } = auth || {};
 
   const [previewQr, setPreviewQr] = useState(null);
@@ -36,7 +36,7 @@ function Qr() {
 
   // === BÀN PHÍM ẢO — GIỐNG HẾT DOWNLOAD.JSX ===
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
-  const [isCaps, setIsCaps] = useState(false);
+  const [isCaps, ] = useState(false);
   const keyboardRef = useRef(null);
   const emailInputRef = useRef(null);
 
@@ -411,8 +411,8 @@ const sendOriginalImagesEmail = async (email, images, gifData = null) => {
         return;
       }
 
-      // Chuyển sang trang in (Choose.jsx)
-      navigate('/choose', {
+      // Chuyển sang trang in (Print.jsx)
+      navigate('/Print', {
         state: {
           compositeImage: finalImageToSend, // Đây giờ là PNG chất lượng cao
           qrImage: qrDataUrl,

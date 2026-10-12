@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // [UPDATE] Thêm useRef
+import  { useState, useEffect, useRef } from 'react'; // [UPDATE] Thêm useRef
 import { useLocation, useNavigate } from 'react-router-dom';
 import './SelPhoto.css';
 import { useCountdown } from "../../contexts/CountdownContext";
@@ -19,7 +19,6 @@ const SelPhoto = () => {
   const { 
     photos, 
     cut, 
-    frameType, 
     size, 
     selectedFrameId, 
     selectedFrame,
@@ -66,7 +65,7 @@ const SelPhoto = () => {
     return {};
   });
 
-  const [allSlotsFilled, setAllSlotsFilled] = useState(false);
+  const [, setAllSlotsFilled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Đang xử lý...');
 
@@ -242,8 +241,8 @@ const SelPhoto = () => {
         const authStr = localStorage.getItem('auth');
         let id_admin = '';
         let id_topic = '';
-        if (authStr) { try { id_admin = JSON.parse(authStr).id_admin; } catch {} }
-        if (authStr) { try { id_topic = JSON.parse(authStr).id_topic; } catch {} }
+        if (authStr) { try { id_admin = JSON.parse(authStr).id_admin; } catch { /* bo qua */ } }
+        if (authStr) { try { id_topic = JSON.parse(authStr).id_topic; } catch { /* bo qua */ } }
         
         setLoadingTemplates(true);
         setLoadingBgTemplates(true);
@@ -300,6 +299,7 @@ const SelPhoto = () => {
   };
 
   const cropImageToMatchOriginal = async (swapResultBase64, originalPhotoUrl) => {
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       try {
         const originalImg = await loadImage(originalPhotoUrl);

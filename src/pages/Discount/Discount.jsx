@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Chatbot from '../../components/Chatbot';
 import './Discount.css';
 import { useCountdown } from "../../contexts/CountdownContext";
+import { getAuthHeaders } from '../../api';
 
 function Discount() {
   const navigate = useNavigate();
@@ -15,13 +16,13 @@ function Discount() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id, id_admin } = auth || {};
 
   const [depositAmount, setDepositAmount] = useState(0);
   const [discountCode, setDiscountCode] = useState('');
   const [discountValue, setDiscountValue] = useState(0);
-  const [availableDiscounts, setAvailableDiscounts] = useState([]);
+  const [, setAvailableDiscounts] = useState([]);
   const [discountError, setDiscountError] = useState(''); // State lưu lỗi mã giảm giá
 
   const { initializeCountdown } = useCountdown();
@@ -215,7 +216,8 @@ function Discount() {
 
       const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/pays`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
+        credentials: 'include',
         body: JSON.stringify(paymentData)
       });
 
@@ -232,7 +234,8 @@ function Discount() {
         try {
           const discountResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL}/discounts/use`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders(),
+            credentials: 'include',
             body: JSON.stringify({ code: discountCode, id_admin })
           });
           const discountResult = await discountResponse.json();

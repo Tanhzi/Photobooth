@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import  { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Chatbot from '../../components/Chatbot';
-import './Choose.css';
+import { bridgeWsUrl } from '../../lib/bridge';
+import './Print.css';
 
-const Choose = () => {
+const Print = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -46,7 +47,7 @@ const Choose = () => {
     }
   }, [countdown, autoTriggered]);
 
-  // === LOGIC IN ẢNH (ĐÃ SỬA SỐ LƯỢNG CHO KHUNG CẮT ĐÔI) ===
+  // === LOGIC IN ẢNH ===
   useEffect(() => {
     if (printTriggeredRef.current) return;
     if (!compositeImage || !size || cut == null) {
@@ -59,22 +60,15 @@ const Choose = () => {
     // 1. Tên máy in
     const printer = 'Canon SELPHY CP1300';
     
-    // 2. Định hướng giấy
+    // 2. Định hướng giấy: cut 3 (dải ngang) in Landscape, còn lại Portrait
     const orientation = [3].includes(parseInt(cut)) ? 'Landscape' : 'Portrait';
     
-    // 3. Xác định chế độ cắt (Split Mode)
+    // 3. Xác định chế độ cắt (Split Mode): cut 3/41 là dải nhỏ -> 2 bản/tờ + máy in cắt đôi
     const isSplitMode = [3, 41].includes(parseInt(cut));
 
-    // 4. TÍNH TOÁN SỐ LƯỢNG TỜ GIẤY CẦN IN (LOGIC MỚI)
-    let copies = size;
-    
-    if (isSplitMode) {
-        copies = Math.ceil(size / 2);
-        console.log(`[Logic in] Chế độ Split: Khách chọn ${size} dải -> In thực tế ${copies} tờ Postcard.`);
-    } else {
-        copies = size;
-        console.log(`[Logic in] Chế độ Thường: Khách chọn ${size} ảnh -> In thực tế ${copies} tờ Postcard.`);
-    }
+    // 4. Số tờ: `size` đã được ChoosePackage quy đổi sang SỐ TỜ
+    //    (cut 3/41: giá trị giá/2; cut 42/6: bằng giá trị giá) -> không chia thêm
+    const copies = Math.max(1, Math.round(Number(size)));
 
     // 5. Khổ giấy Canon
     const paper = 'Postcard';
@@ -82,10 +76,9 @@ const Choose = () => {
     setPrintStatus('Đang chuẩn bị in...');
 
     try {
-      const API_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000'; 
-      const WS_URL = API_URL.replace(/^http/, 'ws');
+      const WS_URL = bridgeWsUrl;
       
-      console.log(`[PRINTER] Connecting to WebSocket: ${WS_URL}`);
+      console.log(`[PRINTER] Connecting to WebSocket: ${WS_URL} (split=${isSplitMode}, tờ=${copies}, ${orientation})`);
       const ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
@@ -133,7 +126,7 @@ const Choose = () => {
   }, [compositeImage, size, cut]);
 
   const handleFinish = () => {
-    navigate('/Download');
+    navigate('/Feedback');
   };
 
   const handleRetryPrint = () => {
@@ -184,4 +177,4 @@ const Choose = () => {
   );
 };
 
-export default Choose;
+export default Print;

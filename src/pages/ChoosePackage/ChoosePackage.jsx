@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Chatbot from '../../components/Chatbot';
-import './crecuts.css';
+import './ChoosePackage.css';
 
-function Crecuts() {
+function ChoosePackage() {
   const navigate = useNavigate();
 
   // Lấy thông tin từ auth
@@ -13,7 +13,7 @@ function Crecuts() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin: idAdmin, id_topic: idTopic } = auth || {}; // Thêm || {} để tránh lỗi nếu auth null
 
   const [selectedSize, setSelectedSize] = useState('');
@@ -282,4 +282,4 @@ function Crecuts() {
   );
 }
 
-export default Crecuts;
+export default ChoosePackage;

@@ -2,10 +2,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Chatbot from '../../components/Chatbot';
-import './Process.css';
+import './Guide.css';
 import { useCountdown } from "../../contexts/CountdownContext";
 
-function Process() {
+function Guide() {
   const navigate = useNavigate();
   const location = useLocation();
   const { size, cut, frameType, selectedFrame, selectedFrameId } = location.state || {};
@@ -16,7 +16,7 @@ function Process() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin: idAdmin, id_topic: idTopic } = auth;
 
   const [backgroundImage, setBackgroundImage] = useState(null);
@@ -49,7 +49,9 @@ function Process() {
   useEffect(() => {
     if (!eventData || eventData.status === 'error') return;
 
-    const baseUrl = "http://localhost:8000";
+    const baseUrl = new URL(
+      import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api'
+    ).origin;
 
     // Background
     if (eventData.background) {
@@ -174,4 +176,4 @@ function Process() {
   );
 }
 
-export default Process;
+export default Guide;

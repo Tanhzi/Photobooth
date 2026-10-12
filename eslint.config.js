@@ -6,6 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default [
   { ignores: ['dist'] },
+
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
@@ -29,6 +30,19 @@ export default [
       ...react.configs['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
       'react/jsx-no-target-blank': 'off',
+      // Dự án không dùng PropTypes (React 19 + JS thuần) — tắt kiểm tra prop-types
+      'react/prop-types': 'off',
+      // Bỏ qua tham số hàm + biến catch không dùng (idiom chuẩn),
+      // rest sibling trong destructuring, biến bắt đầu bằng _
+      'no-unused-vars': [
+        'error',
+        {
+          args: 'none',
+          caughtErrors: 'none',
+          ignoreRestSiblings: true,
+          varsIgnorePattern: '^_',
+        },
+      ],
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './ContentChat.css';
+import { apiGet, apiPost, apiPut, apiDelete, invalidateCache } from '../../api';
 
 const ContentChat = () => {
   const getAuth = () => {
@@ -37,18 +38,17 @@ const ContentChat = () => {
   });
 
   const itemsPerPage = 10;
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   const filterWrapperRef = useRef(null);
 
   const fetchContents = async (page = 1) => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/content-chat?id_admin=${id_admin}&page=${page}&limit=${itemsPerPage}`;
+      let url = `/content-chat?page=${page}&limit=${itemsPerPage}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
       if (filterTitle && filterTitle !== 'all') url += `&filter_title=${encodeURIComponent(filterTitle)}`;
 
-      const res = await fetch(url);
+      const res = await apiGet(url);
       const data = await res.json();
       if (data.status === 'success') {
         setContents(data.data || []);
@@ -104,11 +104,11 @@ const ContentChat = () => {
       try {
         let allIds = [];
         for (let page = 1; page <= totalPages; page++) {
-          let url = `${API_URL}/content-chat?id_admin=${id_admin}&page=${page}&limit=1000`;
+          let url = `/content-chat?page=${page}&limit=1000`;
           if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
           if (filterTitle && filterTitle !== 'all') url += `&filter_title=${encodeURIComponent(filterTitle)}`;
 
-          const res = await fetch(url);
+          const res = await apiGet(url);
           const data = await res.json();
           if (data.status === 'success') {
             allIds = allIds.concat(data.data.map(c => c.id));
@@ -135,7 +135,8 @@ const ContentChat = () => {
     if (!confirm(`Xóa vĩnh viễn ${selectedIds.length} nội dung đã chọn?`)) return;
 
     try {
-      await Promise.all(selectedIds.map(id => fetch(`${API_URL}/content-chat/${id}`, { method: 'DELETE' })));
+      await Promise.all(selectedIds.map(id => apiDelete(`/content-chat/${id}`)));
+      invalidateCache('/content-chat');
       alert(`Đã xóa thành công ${selectedIds.length} nội dung!`);
       setSelectedIds([]);
       setSelectAllGlobal(false);
@@ -164,14 +165,11 @@ const ContentChat = () => {
     if (!addForm.title || !addForm.content) return alert('Title và Content không được để trống!');
 
     try {
-      const res = await fetch(`${API_URL}/content-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...addForm, id_admin })
-      });
+      const res = await apiPost('/content-chat', addForm);
       const result = await res.json();
       alert(result.message || 'Thêm thành công!');
       setShowAddModal(false);
+      invalidateCache('/content-chat');
       fetchContents(currentPage);
     } catch (err) {
       alert('Lỗi mạng!');
@@ -183,14 +181,11 @@ const ContentChat = () => {
     if (!editForm.title || !editForm.content) return alert('Title và Content không được để trống!');
 
     try {
-      const res = await fetch(`${API_URL}/content-chat/${selectedContent.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm)
-      });
+      const res = await apiPut(`/content-chat/${selectedContent.id}`, editForm);
       const result = await res.json();
       alert(result.message || 'Cập nhật thành công!');
       setShowEditModal(false);
+      invalidateCache('/content-chat');
       fetchContents(currentPage);
     } catch (err) {
       alert('Lỗi!');
@@ -201,7 +196,8 @@ const ContentChat = () => {
     if (!confirm('Xóa vĩnh viễn nội dung này?')) return;
 
     try {
-      await fetch(`${API_URL}/content-chat/${id}`, { method: 'DELETE' });
+      await apiDelete(`/content-chat/${id}`);
+      invalidateCache('/content-chat');
       alert('Xóa thành công!');
       fetchContents(currentPage);
     } catch (err) {

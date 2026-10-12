@@ -1,8 +1,17 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './Photo.css';
 import Chatbot from '../../components/Chatbot';
 import { useCountdown } from "../../contexts/CountdownContext";
+import { bridgeWsUrl, bridgeAssetUrl } from '../../lib/bridge';
+
+// ================= MÁY ẢNH QUA LOCAL SERVER (digiCamControl) =================
+// Trang này KHÔNG dùng camera trình duyệt để chụp.
+// Luồng: đếm ngược -> gửi `trigger_capture` qua WebSocket tới bridge (serverr)
+//        -> bridge gọi digiCamControl chụp -> chokidar thấy ảnh mới trong Raw/
+//        -> bridge broadcast `new_dslr_photo` -> trang nhận URL, cắt theo cut, lưu.
+const CAPTURE_TIMEOUT_MS = 15000; // digiCamControl chụp ~2-5s, mock ~1.5s
+const MAX_AUTO_RETRY = 1;
 
 function Photo() {
   const getAuth = () => {
@@ -10,39 +19,41 @@ function Photo() {
     return saved ? JSON.parse(saved) : null;
   };
 
-  const [auth, setAuth] = useState(getAuth());
+  const [auth] = useState(getAuth());
   const { id_admin } = auth || {};
 
-  const [countdown2, setCountdown] = useState(5);
+  const [shootCountdown, setShootCountdown] = useState(0); // đếm ngược trước mỗi lần chụp
   const [photoIndex, setPhotoIndex] = useState(1);
   const [photos, setPhotos] = useState([]);
   const [flash, setFlash] = useState(false);
-  const [isMirror, setIsMirror] = useState(false);
+
   const [initialTime, setInitialTime] = useState(5);
   const [subsequentTime, setSubsequentTime] = useState(8);
-  const [isStarted, setIsStarted] = useState(true);
+  const [isStarted, setIsStarted] = useState(false);
   const [maxPhotos, setMaxPhotos] = useState(8);
   const [isRetaking, setIsRetaking] = useState(false);
   const [retakeIndex, setRetakeIndex] = useState(null);
+
   const [currentPhotosState, setCurrentPhotosState] = useState([]);
   const [currentSelectedSlotsState, setCurrentSelectedSlotsState] = useState([]);
   const [currentAppliedFiltersState, setCurrentAppliedFiltersState] = useState({});
 
-  const [previewCrop, setPreviewCrop] = useState(null);
-  const photosContainerRef = useRef(null);
+  // Trạng thái kết nối bridge + lỗi không nhận được ảnh
+  const [bridgeStatus, setBridgeStatus] = useState('connecting'); // connected | connecting | disconnected
+  const [captureError, setCaptureError] = useState(null);
 
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null); // Vẫn giữ lại canvas để cắt ảnh gốc DSLR
-  const streamRef = useRef(null);
-  const wsRef = useRef(null); // THÊM WEBSOCKET REF
+  const photosContainerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const wsRef = useRef(null);
+  const pendingCaptureRef = useRef(false); // đang chờ ảnh DSLR trả về
+  const captureTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
 
   const navigate = useNavigate();
   const location = useLocation();
   const {
     size,
     cut,
-    id_admin: idAdmin,
-    id_topic: idTopic,
     selectedFrame,
     selectedFrameId,
     price,
@@ -52,14 +63,6 @@ function Photo() {
     currentAppliedFilters: incomingCurrentAppliedFilters
   } = location.state || {};
 
-  const { formattedCountdown, countdown } = useCountdown();
-
-  useEffect(() => {
-    if (countdown === 0) {
-      navigate('/Appclien');
-    }
-  }, [countdown, navigate]);
-
   const getMaxPhotos = (cutValue) => {
     const cutNum = Number(cutValue);
     if (cutNum === 3) return 3;
@@ -68,10 +71,17 @@ function Photo() {
     return 8;
   };
 
+  const { formattedCountdown, countdown } = useCountdown();
+
+  useEffect(() => {
+    if (countdown === 0) {
+      navigate('/Appclien');
+    }
+  }, [countdown, navigate]);
+
   const getCropDimensions = (cutValue, sourceWidth, sourceHeight) => {
     const cutNum = Number(cutValue);
     let targetAspectRatio;
-
     switch (cutNum) {
       case 3: targetAspectRatio = 276 / 220; break;
       case 41: targetAspectRatio = 276 / 195; break;
@@ -103,75 +113,101 @@ function Photo() {
     return { cropWidth, cropHeight, cropX, cropY };
   };
 
-  const updatePreviewCrop = () => {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight || !cut) return;
-    const { cropWidth, cropHeight, cropX, cropY } = getCropDimensions(cut, video.videoWidth, video.videoHeight);
-    const containerWidth = window.innerWidth;
-    const containerHeight = window.innerHeight;
-    const videoAspectRatio = video.videoWidth / video.videoHeight;
-    const containerAspectRatio = containerWidth / containerHeight;
-
-    let displayWidth, displayHeight, offsetX, offsetY;
-    if (videoAspectRatio > containerAspectRatio) {
-      displayWidth = containerWidth;
-      displayHeight = containerWidth / videoAspectRatio;
-      offsetX = 0;
-      offsetY = (containerHeight - displayHeight) / 2;
-    } else {
-      displayHeight = containerHeight;
-      displayWidth = containerHeight * videoAspectRatio;
-      offsetY = 0;
-      offsetX = (containerWidth - displayWidth) / 2;
-    }
-
-    const scaleX = displayWidth / video.videoWidth;
-    const scaleY = displayHeight / video.videoHeight;
-    setPreviewCrop({
-      x: offsetX + cropX * scaleX,
-      y: offsetY + cropY * scaleY,
-      width: cropWidth * scaleX,
-      height: cropHeight * scaleY,
-    });
-  };
-
-  // ================= KẾT NỐI WEBSOCKET =================
+  // ================= KẾT NỐI WEBSOCKET TỚI BRIDGE (TỰ KẾT NỐI LẠI) =================
   useEffect(() => {
-    wsRef.current = new WebSocket('ws://localhost:5000');
+    let disposed = false;
+    let reconnectTimer = null;
 
-    wsRef.current.onopen = () => console.log('✅ Đã kết nối Local Server để điều khiển máy ảnh');
-
-    wsRef.current.onmessage = (event) => {
+    const connect = () => {
+      if (disposed) return;
+      let ws;
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'new_dslr_photo') {
-          console.log("📸 Nhận ảnh gốc từ DSLR:", data.url);
-          // Khi có ảnh mới, tiến hành cắt ảnh độ phân giải cao
-          processHighResPhoto(data.url);
-        }
+        ws = new WebSocket(bridgeWsUrl);
       } catch (err) {
-        console.error('Lỗi đọc tin nhắn WebSocket:', err);
+        console.error('Lỗi tạo WebSocket bridge:', err);
+        setBridgeStatus('disconnected');
+        reconnectTimer = setTimeout(connect, 3000);
+        return;
       }
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        if (disposed) return;
+        console.log('✅ Đã kết nối Local Server (máy ảnh digiCamControl):', bridgeWsUrl);
+        setBridgeStatus('connected');
+      };
+
+      ws.onmessage = (event) => {
+        if (disposed) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'new_dslr_photo' && pendingCaptureRef.current) {
+            pendingCaptureRef.current = false;
+            if (captureTimeoutRef.current) {
+              clearTimeout(captureTimeoutRef.current);
+              captureTimeoutRef.current = null;
+            }
+            retryCountRef.current = 0;
+            setCaptureError(null);
+            const imageUrl = bridgeAssetUrl(data.fileName, data.url);
+            console.log('📸 Nhận ảnh DSLR từ bridge:', imageUrl);
+            processHighResPhoto(imageUrl);
+          }
+        } catch (err) {
+          console.error('Lỗi đọc tin nhắn WebSocket:', err);
+        }
+      };
+
+      ws.onclose = () => {
+        if (disposed) return;
+        setBridgeStatus('disconnected');
+        reconnectTimer = setTimeout(connect, 3000);
+      };
+
+      ws.onerror = () => {
+        try { ws.close(); } catch { /* bỏ qua */ }
+      };
     };
+
+    connect();
 
     return () => {
-      if (wsRef.current) wsRef.current.close();
+      disposed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (captureTimeoutRef.current) clearTimeout(captureTimeoutRef.current);
+      if (wsRef.current) {
+        try { wsRef.current.close(); } catch { /* bỏ qua */ }
+        wsRef.current = null;
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ================= INIT STATE & CẤU HÌNH =================
   useEffect(() => {
-    const { retakeIndex: locRetakeIndex, currentPhotos: locCurrentPhotos, currentSelectedSlots: locCurrentSelectedSlots, currentAppliedFilters: locCurrentAppliedFilters } = location.state || {};
-    if (locRetakeIndex !== undefined && locCurrentPhotos) {
-      setIsRetaking(true); setRetakeIndex(locRetakeIndex); setCurrentPhotosState(locCurrentPhotos);
-      setCurrentSelectedSlotsState(locCurrentSelectedSlots || []); setCurrentAppliedFiltersState(locCurrentAppliedFilters || {});
-      setPhotos([]); setPhotoIndex(1); setMaxPhotos(1); setIsStarted(true);
+    if (incomingRetakeIndex !== undefined && incomingCurrentPhotos) {
+      setIsRetaking(true);
+      setRetakeIndex(incomingRetakeIndex);
+      setCurrentPhotosState(incomingCurrentPhotos);
+      setCurrentSelectedSlotsState(incomingCurrentSelectedSlots || []);
+      setCurrentAppliedFiltersState(incomingCurrentAppliedFilters || {});
+      setPhotos([]);
+      setPhotoIndex(1);
+      setMaxPhotos(1);
+      setIsStarted(true);
     } else {
-      setIsRetaking(false); setRetakeIndex(null); setCurrentPhotosState([]);
-      setCurrentSelectedSlotsState([]); setCurrentAppliedFiltersState({});
-      setMaxPhotos(getMaxPhotos(cut)); setPhotos([]); setPhotoIndex(1); setIsStarted(false);
+      setIsRetaking(false);
+      setRetakeIndex(null);
+      setCurrentPhotosState([]);
+      setCurrentSelectedSlotsState([]);
+      setCurrentAppliedFiltersState({});
+      const maxPhotoCount = getMaxPhotos(cut);
+      setMaxPhotos(maxPhotoCount);
+      setPhotos([]);
+      setPhotoIndex(1);
+      setIsStarted(false);
     }
-  }, [cut]);
+  }, [incomingRetakeIndex, incomingCurrentPhotos, cut]);
 
   useEffect(() => {
     if (!id_admin) return;
@@ -181,101 +217,119 @@ function Photo() {
         if (!data) return;
         setInitialTime(Number(data.time1) || 5);
         setSubsequentTime(Number(data.time2) || 8);
-        setIsMirror(Number(data.mirror) === 1);
-      }).catch(console.error);
+      })
+      .catch((err) => console.error('Lỗi khi lấy cấu hình:', err));
   }, [id_admin]);
 
-  // ================= SETUP WEBCAM CHỈ ĐỂ LÀM GƯƠNG SOI =================
+  // Đếm ngược và chụp ảnh (chỉ bắn lệnh khi đang chờ ảnh cũ xong)
   useEffect(() => {
-    let mounted = true;
-    const setupCamera = async () => {
-      try {
-        // Cấu hình đơn giản hơn vì chỉ dùng để review, không dùng để chụp
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } } });
-        if (!mounted) return;
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
-          videoRef.current.addEventListener('loadedmetadata', updatePreviewCrop, { once: true });
-        }
-      } catch (err) {
-        console.error('Lỗi khi truy cập camera review:', err);
-      }
-    };
-    setupCamera();
+    if (!isStarted || photoIndex > maxPhotos) return;
 
-    const handleBeforeUnload = () => { if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop()); };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    const currentTime = photoIndex === 1 ? initialTime : subsequentTime;
+    setShootCountdown(currentTime);
+
+    const shootTimer = setTimeout(() => {
+      handleTakePhoto();
+    }, currentTime * 1000);
+
+    const interval = setInterval(() => {
+      setShootCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
 
     return () => {
-      mounted = false;
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+      clearTimeout(shootTimer);
+      clearInterval(interval);
     };
-  }, [cut]);
+  }, [photoIndex, isStarted, maxPhotos, initialTime, subsequentTime]);
 
-  // ================= LOGIC CHUYỂN TRANG KHI CHỤP XONG =================
+  // ✅ CHUYỂN TRANG KHI CHỤP ĐỦ ẢNH
   useEffect(() => {
-    if (!isStarted) return;
-
-    // Khi đã chụp đủ số lượng ảnh
     if (photoIndex > maxPhotos) {
       setTimeout(() => {
         if (isRetaking) {
           const newPhoto = photos[0];
-          const updatedPhotos = [...currentPhotosState]; updatedPhotos[retakeIndex] = newPhoto;
+          const updatedPhotos = [...currentPhotosState];
+          updatedPhotos[retakeIndex] = newPhoto;
           const updatedSlots = [...currentSelectedSlotsState];
-          if (updatedSlots[retakeIndex]) updatedSlots[retakeIndex] = { ...updatedSlots[retakeIndex], photo: newPhoto };
-          navigate('/Selphoto', { state: { photos: updatedPhotos, size, cut, selectedFrame, selectedFrameId, price, selectedSlots: updatedSlots, appliedFilters: { ...currentAppliedFiltersState } } });
+          if (updatedSlots[retakeIndex]) {
+            updatedSlots[retakeIndex] = { ...updatedSlots[retakeIndex], photo: newPhoto, flip: false };
+          }
+          const updatedFilters = { ...currentAppliedFiltersState };
+          updatedFilters[retakeIndex] = 'original';
+
+          navigate('/Selphoto', {
+            state: {
+              photos: updatedPhotos,
+              size,
+              cut,
+              selectedFrame,
+              selectedFrameId,
+              price,
+              selectedSlots: updatedSlots,
+              appliedFilters: updatedFilters,
+            },
+          });
         } else {
           const initialSlots = photos.map((photo) => ({ photo, flip: false }));
-          const initialFilters = {}; photos.forEach((_, i) => { initialFilters[i] = 'original'; });
-          navigate('/Selphoto', { state: { photos, size, cut, selectedFrame, selectedFrameId, price, selectedSlots: initialSlots, appliedFilters: initialFilters } });
+          const initialFilters = {};
+          photos.forEach((_, i) => {
+            initialFilters[i] = 'original';
+          });
+          navigate('/Selphoto', {
+            state: {
+              photos,
+              size,
+              cut,
+              selectedFrame,
+              selectedFrameId,
+              price,
+              selectedSlots: initialSlots,
+              appliedFilters: initialFilters,
+            },
+          });
         }
       }, 1500);
+    }
+  }, [photoIndex, maxPhotos, isRetaking, photos, navigate]);
+
+  // ================= BẮN LỆNH CHỤP QUA BRIDGE =================
+  const triggerCapture = () => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      setCaptureError('Server máy ảnh chưa kết nối. Kiểm tra bridge (serverr) rồi nhấn màn hình để thử lại.');
       return;
     }
 
-    const currentTime = photoIndex === 1 ? initialTime : subsequentTime;
-    setCountdown(currentTime);
-    const timer = setTimeout(() => {
-      handleTakePhoto();
-    }, currentTime * 1000);
+    setCaptureError(null);
+    pendingCaptureRef.current = true;
+    ws.send(JSON.stringify({ type: 'trigger_capture' }));
+    console.log(`📸 Đã gửi lệnh chụp (lần thử ${retryCountRef.current + 1})...`);
 
-    return () => clearTimeout(timer);
-  }, [photoIndex, isStarted, maxPhotos, initialTime, subsequentTime, photos, navigate, size, cut, selectedFrame, selectedFrameId, price, isRetaking, retakeIndex, currentPhotosState, currentSelectedSlotsState, currentAppliedFiltersState]);
-
-  // ================= VÒNG LẶP ĐẾM NGƯỢC HIỂN THỊ =================
-  useEffect(() => {
-    if (!isStarted || photoIndex > maxPhotos) return;
-    const interval = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isStarted, photoIndex, maxPhotos]);
-
-  // ================= BẮN LỆNH CHỤP =================
-  const handleTakePhoto = () => {
-    if (photoIndex > maxPhotos) return;
-
-    // 1. Chớp màn hình giả lập flash
-    setFlash(true);
-    setTimeout(() => setFlash(false), 200);
-
-    // 2. Gửi lệnh chụp qua WebSocket
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'trigger_capture' }));
-    } else {
-      console.error("Lỗi: Server máy ảnh chưa được kết nối!");
-    }
+    if (captureTimeoutRef.current) clearTimeout(captureTimeoutRef.current);
+    captureTimeoutRef.current = setTimeout(() => {
+      if (!pendingCaptureRef.current) return;
+      if (retryCountRef.current < MAX_AUTO_RETRY) {
+        retryCountRef.current += 1;
+        console.warn('⏳ Chưa nhận được ảnh từ máy ảnh, thử lại...');
+        triggerCapture();
+      } else {
+        pendingCaptureRef.current = false;
+        setCaptureError('Không nhận được ảnh từ máy ảnh. Nhấn màn hình để thử lại.');
+      }
+    }, CAPTURE_TIMEOUT_MS);
   };
 
-  // ================= XỬ LÝ ẢNH NÉT CĂNG TỪ LOCAL SERVER =================
+  const handleTakePhoto = () => {
+    if (photoIndex > maxPhotos || pendingCaptureRef.current) return;
+    retryCountRef.current = 0;
+    triggerCapture();
+  };
+
+  // ================= NHẬN ẢNH DSLR -> CẮT THEO CUT -> LƯU =================
   const processHighResPhoto = (imageUrl) => {
     const img = new Image();
-    img.crossOrigin = "Anonymous"; // Tránh lỗi CORS khi đọc ảnh từ localhost:5000
-    
+    img.crossOrigin = 'anonymous'; // ảnh từ origin của bridge (localhost/ngrok)
+
     img.onload = () => {
       const { cropWidth, cropHeight, cropX, cropY } = getCropDimensions(cut, img.width, img.height);
       const canvas = canvasRef.current;
@@ -283,13 +337,18 @@ function Photo() {
       canvas.height = cropHeight;
       const ctx = canvas.getContext('2d');
 
-      // Vẽ ảnh DSLR kích thước gốc lên canvas để cắt gọn gàng theo tỷ lệ khung
-      // Máy DSLR thường không cần lật gương (mirror) như webcam, nên giữ nguyên bản
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      // DSLR chụp thẳng (không gương) -> không lật
       ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-      // Xuất ảnh chuẩn JPEG chất lượng tối đa 1.0 (100%)
-      const highResDataUrl = canvas.toDataURL('image/jpeg', 1.0);
-      applyCapturedPhoto(highResDataUrl);
+      applyCapturedPhoto(canvas.toDataURL('image/jpeg', 1.0));
+    };
+
+    img.onerror = () => {
+      console.error('Lỗi tải ảnh DSLR:', imageUrl);
+      pendingCaptureRef.current = false;
+      setCaptureError('Không tải được ảnh từ máy ảnh. Nhấn màn hình để thử lại.');
     };
 
     img.src = imageUrl;
@@ -297,59 +356,110 @@ function Photo() {
 
   const applyCapturedPhoto = (dataUrl) => {
     setPhotos((prev) => [...prev, dataUrl]);
-    // CHỈ KHI NHẬN ĐƯỢC ẢNH VÀ CẮT XONG THÌ MỚI TĂNG INDEX (bắt đầu vòng đếm ngược tiếp theo)
-    setPhotoIndex((prev) => prev + 1); 
-    
+    setPhotoIndex((prev) => prev + 1);
     setFlash(true);
     setTimeout(() => setFlash(false), 200);
-    
+
     setTimeout(() => {
-      if (photosContainerRef.current && photosContainerRef.current.lastElementChild) {
+      if (photosContainerRef.current?.lastElementChild) {
         photosContainerRef.current.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
-    }, 50); 
+    }, 50);
   };
 
-  const handleScreenClick = () => { if (!isStarted) setIsStarted(true); };
-  const getCurrentPhotoDisplay = () => { return photoIndex <= maxPhotos ? `${photoIndex}/${maxPhotos}` : 'Hoàn thành!'; };
+  const handleScreenClick = () => {
+    if (captureError) {
+      retryCountRef.current = 0;
+      triggerCapture();
+      return;
+    }
+    if (!isStarted && bridgeStatus === 'connected') setIsStarted(true);
+  };
+
+  const getCurrentPhotoDisplay = () => {
+    return photoIndex <= maxPhotos ? `${photoIndex}/${maxPhotos}` : 'Hoàn thành!';
+  };
+
+  const bridgeStatusText = () => {
+    if (bridgeStatus === 'connected') return 'Máy ảnh: đã kết nối';
+    if (bridgeStatus === 'connecting') return 'Máy ảnh: đang kết nối...';
+    return 'Máy ảnh: MẤT KẾT NỐI (đang thử lại...)';
+  };
 
   return (
     <div className="photo-container" onClick={handleScreenClick}>
-      {/* Webcam giờ chỉ làm gương soi (Mirror UI) */}
-      <video
-        ref={videoRef}
-        className={`video-stream-fullscreen ${isMirror ? 'video-mirror' : ''}`}
-        playsInline muted autoPlay
+      {/* Không dùng camera trình duyệt — nền tối, ảnh chỉ đến từ DSLR qua bridge */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'radial-gradient(circle at 50% 40%, #1b1b1b 0%, #000 70%)',
+        }}
       />
-      
+
+      {/* Countdown tổng (góc trên) */}
       <div className="countdown">⌛: {formattedCountdown}</div>
+
+      {/* Trạng thái kết nối máy ảnh */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          zIndex: 30,
+          color: '#fff',
+          fontSize: 14,
+          padding: '4px 10px',
+          borderRadius: 12,
+          background: bridgeStatus === 'connected' ? 'rgba(40,160,70,0.75)' : 'rgba(180,60,60,0.8)',
+        }}
+      >
+        {bridgeStatusText()}
+      </div>
 
       <canvas ref={canvasRef} className="d-none" />
 
-      {previewCrop && (
-        <div className="crop-mask-overlay">
-          <div className="mask-bar" style={{ top: 0, left: 0, right: 0, height: `${previewCrop.y}px` }} />
-          <div className="mask-bar" style={{ bottom: 0, left: 0, right: 0, height: `${window.innerHeight - (previewCrop.y + previewCrop.height)}px` }} />
-          <div className="mask-bar" style={{ top: `${previewCrop.y}px`, left: 0, width: `${previewCrop.x}px`, height: `${previewCrop.height}px` }} />
-          <div className="mask-bar" style={{ top: `${previewCrop.y}px`, right: 0, width: `${window.innerWidth - (previewCrop.x + previewCrop.width)}px`, height: `${previewCrop.height}px` }} />
-          <div className="crop-outline" style={{ left: `${previewCrop.x}px`, top: `${previewCrop.y}px`, width: `${previewCrop.width}px`, height: `${previewCrop.height}px` }} />
-        </div>
-      )}
-
       {flash && <div className="flash-overlay-fullscreen" />}
 
-      {!isStarted ? (
+      {!isStarted && (
         <div className="camera-icon-overlay">
           <div className="camera-icon">
             <i className="fas fa-camera" />
-            <p>Nhấn vào màn hình để bắt đầu chụp</p>
+            {bridgeStatus === 'connected' ? (
+              <p>Nhấn vào màn hình để bắt đầu chụp</p>
+            ) : (
+              <p>Đang kết nối máy ảnh (digiCamControl)... vui lòng đợi</p>
+            )}
           </div>
         </div>
-      ) : null}
-      
-      {isStarted && photoIndex <= maxPhotos && (
+      )}
+
+      {captureError && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 40,
+            background: 'rgba(180, 40, 40, 0.92)',
+            color: '#fff',
+            padding: '22px 30px',
+            borderRadius: 12,
+            textAlign: 'center',
+            maxWidth: 480,
+            fontSize: 18,
+          }}
+        >
+          <i className="fas fa-exclamation-triangle" style={{ fontSize: 30, marginBottom: 10 }} />
+          <p style={{ margin: '8px 0' }}>{captureError}</p>
+          <p style={{ margin: 0, opacity: 0.85, fontSize: 15 }}>Nhấn vào màn hình</p>
+        </div>
+      )}
+
+      {isStarted && photoIndex <= maxPhotos && !captureError && (
         <div className="countdown-center">
-          <div className="countdown-number-large">{countdown2}</div>
+          <div className="countdown-number-large">{shootCountdown}</div>
         </div>
       )}
 
@@ -359,7 +469,12 @@ function Photo() {
         <div className="captured-photos-column" ref={photosContainerRef}>
           <div className="captured-photos-title">Ảnh đã chụp ({photos.length}/{maxPhotos})</div>
           {photos.map((photo, index) => (
-            <img key={index} src={photo} alt={`Ảnh ${index + 1}`} className="captured-photo-item" />
+            <img
+              key={index}
+              src={photo}
+              alt={`Ảnh ${index + 1}`}
+              className="captured-photo-item"
+            />
           ))}
         </div>
       )}

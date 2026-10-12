@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './Frame.css';
 import { useCountdown } from "../../contexts/CountdownContext";
@@ -353,7 +353,7 @@ function Frame() {
 
                         ctx.drawImage(sImg, -finalSize/2, -finalSize/2, finalSize, finalSize);
                         ctx.translate(-sX, -sY);
-                    } catch (e) { }
+                    } catch (e) { /* bo qua */ }
                 }
             }
             ctx.restore();

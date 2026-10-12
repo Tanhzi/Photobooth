@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { FaPlus, FaUpload, FaFileAlt } from "react-icons/fa";
+import  { useState, useEffect, useMemo, useRef } from "react";
+import { FaUpload, FaFileAlt } from "react-icons/fa";
 import Navbar from '../../components/Navbar';
 import "./Event.css";
+import { apiGet, apiPost, apiPut, apiDelete, invalidateCache } from '../../api';
 
 const Event = () => {
     const getAuth = () => {
@@ -9,7 +10,7 @@ const Event = () => {
         return saved ? JSON.parse(saved) : null;
     };
 
-    const [auth, setAuth] = useState(getAuth());
+    const [auth, ] = useState(getAuth());
     const { id: id_admin, username } = auth || {};
 
     // State cho danh sách sự kiện
@@ -62,7 +63,6 @@ const Event = () => {
     const filterRef = useRef(null);
     const [showFilterMenu, setShowFilterMenu] = useState(false);
 
-    const API_URL = import.meta.env.VITE_API_BASE_URL;
 
     // Đóng menu khi click bên ngoài
     useEffect(() => {
@@ -80,7 +80,7 @@ const Event = () => {
 // Lấy dữ liệu ghi chú từ Laravel API
 const refreshNote = () => {
     if (!id_admin) return;
-    fetch(`${API_URL}/event-notes?id_admin=${id_admin}`)
+    apiGet('/event-notes')
         .then(res => res.json())
         .then(data => {
             if (Array.isArray(data)) {
@@ -102,7 +102,7 @@ useEffect(() => {
 }, [id_admin]);
 
 const refreshEvents = () => {
-    fetch(`${API_URL}/events-admin?id_admin=${id_admin}`)
+    apiGet('/events-admin')
         .then((res) => res.json())
         .then((data) => {
             let eventsData = [];
@@ -114,7 +114,6 @@ const refreshEvents = () => {
                 console.warn("Unexpected events API response:", data);
             }
 
-            // ✅ SẮP XẾP THEO `id` TĂNG DẦN  (2 sắp xếp theo id)
             const sortedEvents = eventsData.sort((a, b) => a.id - b.id);
             setEvents(sortedEvents);
         })
@@ -125,7 +124,7 @@ const refreshEvents = () => {
 };
 
     const refreshUsers = () => {
-        fetch(`${API_URL}/users-admin?id_admin=${id_admin}`)
+        apiGet('/users-admin')
             .then((res) => res.json())
             .then((data) => {
                 if (Array.isArray(data)) {
@@ -156,16 +155,13 @@ const refreshEvents = () => {
         noteFormData.append("note3", currentNote.note3);
         noteFormData.append("ev_note", noteApply);
 
-        fetch(`${API_URL}/events-admin/${currentNote.id}/note?id_admin=${id_admin}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: noteFormData.toString()
+        apiPost(`/events-admin/${currentNote.id}/note`, noteFormData.toString(), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         })
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Ghi chú đã được cập nhật thành công!");
                     setShowTextForm(false);
                     refreshNote();
@@ -192,16 +188,13 @@ const handleSaveLogoImage = () => {
         const formData = new URLSearchParams();
         formData.append("apply", logoApplyOption);
 
-        fetch(`${API_URL}/events-admin/${selectedEvent.id}/logo?id_admin=${id_admin}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: formData.toString()
+        apiPost(`/events-admin/${selectedEvent.id}/logo`, formData.toString(), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         })
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Cập nhật tùy chọn logo thành công!");
                     refreshEvents();
                 } else {
@@ -217,14 +210,20 @@ const handleSaveLogoImage = () => {
         const formData = new FormData();
         formData.append("logo", logoFile);
         formData.append("apply", logoApplyOption);
+        const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+        const token = authObj.token;
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
-        fetch(`${API_URL}/events-admin/${selectedEvent.id}/logo?id_admin=${id_admin}`, {
+        fetch(`${import.meta.env.VITE_API_BASE_URL}/events-admin/${selectedEvent.id}/logo`, {
             method: "POST",
+            headers: authHeaders,
+            credentials: 'include',
             body: formData
         })
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Cập nhật logo thành công!");
                     refreshEvents();
                 } else {
@@ -254,18 +253,7 @@ const handleSaveLogoImage = () => {
             apply: selectedUsers
         };
 
-// ✅ ĐÚNG: Gửi JSON
-fetch(`${API_URL}/events-admin?id_admin=${id_admin}`, {
-    method: "POST",
-    headers: {
-        "Content-Type": "application/json", // ← QUAN TRỌNG
-    },
-    body: JSON.stringify({
-        name: eventName,
-        date: eventDate,
-        apply: selectedUsers, // [1, 2, 3]
-    })
-})
+apiPost('/events-admin', payload)
             .then(res => res.json())
             .then(async data => {
                 if (data.status !== "success") {
@@ -273,6 +261,8 @@ fetch(`${API_URL}/events-admin?id_admin=${id_admin}`, {
                     return;
                 }
 
+                invalidateCache('/events-admin');
+                invalidateCache('/users-admin');
                 alert("Tạo mới sự kiện thành công!");
                 const newEventId = data.id;
 
@@ -280,13 +270,9 @@ fetch(`${API_URL}/events-admin?id_admin=${id_admin}`, {
                     try {
                         await Promise.all(
                             selectedUsers.map(userId => {
-                                return fetch(
-                                    `${API_URL}/users-admin/${userId}?id_admin=${id_admin}`,
-                                    {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ id_topic: newEventId })
-                                    }
+                                return apiPost(
+                                    `/users-admin/${userId}`,
+                                    { id_topic: newEventId }
                                 ).then(r => r.json());
                             })
                         );
@@ -315,14 +301,7 @@ const handleSaveEvent = () => {
         apply: selectedUsers
     };
 
-    fetch(`${API_URL}/events-admin/${eventIdToEdit}?id_admin=${id_admin}`, {
-        method: "PUT",
-        headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        },
-        body: JSON.stringify(payload)
-    })
+    apiPut(`/events-admin/${eventIdToEdit}`, payload)
         .then(res => res.json())
         .then(async data => {
             if (data.status !== "success") {
@@ -330,17 +309,15 @@ const handleSaveEvent = () => {
                 return;
             }
 
+            invalidateCache('/events-admin');
+            invalidateCache('/users-admin');
             if (selectedUsers.length > 0) {
                 try {
                     await Promise.all(
                         selectedUsers.map(userId => {
-                            return fetch(
-                                `${API_URL}/users-admin/${userId}?id_admin=${id_admin}`,
-                                {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ id_topic: eventIdToEdit })
-                                }
+                            return apiPost(
+                                `/users-admin/${userId}`,
+                                { id_topic: eventIdToEdit }
                             ).then(r => r.json());
                         })
                     );
@@ -349,7 +326,6 @@ const handleSaveEvent = () => {
                 }
             }
 
-            // Thêm thông báo thành công ở đây
             alert("Cập nhật sự kiện thành công!");
             refreshEvents();
             refreshUsers();
@@ -364,12 +340,11 @@ const handleSaveEvent = () => {
     const handleDeleteEvent = (id) => {
         if (!window.confirm("Bạn có chắc chắn muốn xóa sự kiện này không?")) return;
 
-        fetch(`${API_URL}/events-admin/${id}?id_admin=${id_admin}`, {
-            method: "DELETE"
-        })
+        apiDelete(`/events-admin/${id}`)
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Xóa sự kiện thành công!");
                     refreshEvents();
                 } else {
@@ -404,16 +379,13 @@ const handleSaveBackgroundImage = () => {
         const formData = new URLSearchParams();
         formData.append("apply", bgApplyOption);
 
-        fetch(`${API_URL}/events-admin/${selectedEvent.id}/background?id_admin=${id_admin}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: formData.toString()
+        apiPost(`/events-admin/${selectedEvent.id}/background`, formData.toString(), {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         })
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Cập nhật tùy chọn ảnh nền thành công!");
                     refreshEvents();
                 } else {
@@ -430,13 +402,19 @@ const handleSaveBackgroundImage = () => {
         formData.append("background", backgroundFile);
         formData.append("apply", bgApplyOption);
 
-        fetch(`${API_URL}/events-admin/${selectedEvent.id}/background?id_admin=${id_admin}`, {
+        const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+        const token = authObj.token;
+        const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+        fetch(`${import.meta.env.VITE_API_BASE_URL}/events-admin/${selectedEvent.id}/background`, {
             method: "POST",
+            headers: authHeaders,
+            credentials: 'include',
             body: formData
         })
             .then((res) => res.json())
             .then((data) => {
                 if (data.status === "success") {
+                    invalidateCache('/events-admin');
                     alert("Cập nhật ảnh nền thành công!");
                     refreshEvents();
                 } else {
@@ -552,9 +530,10 @@ const handleSaveBackgroundImage = () => {
 
         try {
             const promises = selectedIds.map(id =>
-                fetch(`${API_URL}/events-admin/${id}?id_admin=${id_admin}`, { method: 'DELETE' })
+                apiDelete(`/events-admin/${id}`)
             );
             await Promise.all(promises);
+            invalidateCache('/events-admin');
             alert(`Đã xóa thành công ${selectedIds.length} sự kiện!`);
             setSelectedIds([]);
             setSelectAllGlobal(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import './SelPhoto.css';
 import { useCountdown } from "../../contexts/CountdownContext";
@@ -16,7 +16,6 @@ const SelPhoto = () => {
   const { 
     photos, 
     cut, 
-    frameType, 
     size, 
     selectedFrameId, 
     selectedFrame,
@@ -68,7 +67,7 @@ const SelPhoto = () => {
     return {};
   });
 
-  const [allSlotsFilled, setAllSlotsFilled] = useState(false);
+  const [, setAllSlotsFilled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Đang xử lý...');
 
@@ -203,8 +202,8 @@ const SelPhoto = () => {
         const authStr = localStorage.getItem('auth');
         let id_admin = '';
         let id_topic = '';
-        if (authStr) { try { id_admin = JSON.parse(authStr).id_admin; } catch {} }
-        if (authStr) { try { id_topic = JSON.parse(authStr).id_topic; } catch {} }
+        if (authStr) { try { id_admin = JSON.parse(authStr).id_admin; } catch { /* bo qua */ } }
+        if (authStr) { try { id_topic = JSON.parse(authStr).id_topic; } catch { /* bo qua */ } }
         
         setLoadingTemplates(true);
         setLoadingBgTemplates(true);
@@ -261,6 +260,7 @@ const SelPhoto = () => {
   };
 
   const cropImageToMatchOriginal = async (swapResultBase64, originalPhotoUrl) => {
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       try {
         const originalImg = await loadImage(originalPhotoUrl);
@@ -528,150 +528,6 @@ const SelPhoto = () => {
     });
   };
 
-  const generateCompositeImage = async (images, cutValue) => {
-    let compositeWidth, compositeHeight, positions, imageWidth, imageHeight;
-
-    if (cutValue === '42') {
-      compositeWidth = 600;
-      compositeHeight = 900;
-      const paddingLeft = 5;
-      const paddingTop = 30;
-      const paddingRight = 5;
-      const paddingBottom = 120;
-      const gap = 1;
-      imageWidth = (compositeWidth - paddingLeft - paddingRight - gap) / 2;
-      imageHeight = (compositeHeight - paddingTop - paddingBottom - gap) / 2;
-      positions = [
-        { x: paddingLeft, y: paddingTop },
-        { x: paddingLeft + imageWidth + gap, y: paddingTop },
-        { x: paddingLeft, y: paddingTop + imageHeight + gap },
-        { x: paddingLeft + imageWidth + gap, y: paddingTop + imageHeight + gap }
-      ];
-      positions = positions.slice(0, images.length);
-    }
-    else if (cutValue === '41') {
-      compositeWidth = 300;
-      compositeHeight = 900;
-      const paddingLeft = 12;
-      const paddingTop = 25;
-      const paddingRight = 12;
-      const paddingBottom = 90;
-      const gap = 10;
-      imageWidth = compositeWidth - paddingLeft - paddingRight;
-      imageHeight = (compositeHeight - paddingTop - paddingBottom - 3 * gap) / 4;
-      positions = [];
-      for (let i = 0; i < 4; i++) {
-        positions.push({ x: paddingLeft, y: paddingTop + i * (imageHeight + gap) });
-      }
-      positions = positions.slice(0, images.length);
-    }
-    else if (cutValue === '3') {
-      compositeWidth = 900;
-      compositeHeight = 300;
-      const paddingLeft = 25;
-      const paddingTop = 40;
-      const paddingRight = 25;
-      const paddingBottom = 40;
-      const gap = 11;
-      imageWidth = 276;
-      imageHeight = 220;
-      positions = [
-        { x: paddingLeft, y: paddingTop },
-        { x: paddingLeft + imageWidth + gap, y: paddingTop },
-        { x: paddingLeft + 2 * (imageWidth + gap), y: paddingTop }
-      ];
-      positions = positions.slice(0, images.length);
-    }
-    else if (cutValue === '6') {
-      compositeWidth = 600;
-      compositeHeight = 900;
-      const paddingLeft = 10;
-      const paddingRight = 20;
-      const paddingTop = 24;
-      const paddingBottom = 120;
-      const gap = 1;
-      imageWidth = (compositeWidth - paddingLeft - paddingRight - gap) / 2;
-      imageHeight = (compositeHeight - paddingTop - paddingBottom - 2 * gap) / 3;
-      positions = [];
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 2; col++) {
-          const x = paddingLeft + col * (imageWidth + gap);
-          const y = paddingTop + row * (imageHeight + gap);
-          positions.push({ x, y });
-        }
-      }
-      positions = positions.slice(0, images.length);
-    }
-    else {
-      compositeWidth = 800;
-      compositeHeight = 600;
-      const count = images.length;
-      const cols = Math.ceil(Math.sqrt(count));
-      const rows = Math.ceil(count / cols);
-      const spacing = 10;
-      imageWidth = (compositeWidth - spacing * (cols + 1)) / cols;
-      imageHeight = (compositeHeight - spacing * (rows + 1)) / rows;
-      positions = [];
-      for (let i = 0; i < count; i++) {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = spacing + col * (imageWidth + spacing);
-        const y = spacing + row * (imageHeight + spacing);
-        positions.push({ x, y });
-      }
-    }
-
-    const canvas = document.createElement('canvas');
-    canvas.width = compositeWidth;
-    canvas.height = compositeHeight;
-    const ctx = canvas.getContext('2d');
-
-    const loadedImages = await Promise.all(images.map(item => loadImage(item.photo)));
-
-    images.forEach((item, idx) => {
-      const pos = positions[idx];
-      const img = loadedImages[idx];
-      const filterValue = filters.find(f => f.id === appliedFilters[idx])?.filter || 'none';
-      ctx.filter = filterValue;
-
-      if (item.flip) {
-        ctx.save();
-        ctx.translate(pos.x + imageWidth, pos.y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(img, 0, 0, imageWidth, imageHeight);
-        ctx.restore();
-      } else {
-        ctx.drawImage(img, pos.x, pos.y, imageWidth, imageHeight);
-      }
-      ctx.filter = 'none';
-    });
-
-    for (let idx = 0; idx < images.length; idx++) {
-      const pos = positions[idx];
-      const stickers = imageStickers[idx] || [];
-
-      for (const sticker of stickers) {
-        if (sticker.x >= 5 && sticker.x <= 95 && sticker.y >= 5 && sticker.y <= 95) {
-          try {
-            const stickerImg = await loadImage(sticker.src);
-            ctx.save();
-            const stickerX = pos.x + (sticker.x / 100) * imageWidth;
-            const stickerY = pos.y + (sticker.y / 100) * imageHeight;
-            ctx.translate(stickerX, stickerY);
-            ctx.rotate((sticker.rotation * Math.PI) / 180);
-            ctx.scale(sticker.scale, sticker.scale);
-            const stickerSize = 60; 
-            ctx.drawImage(stickerImg, -stickerSize / 2, -stickerSize / 2, stickerSize, stickerSize);
-            ctx.restore();
-          } catch (error) {
-            console.error('[ERROR] Failed to load sticker:', sticker.src, error);
-          }
-        }
-      }
-    }
-
-    return canvas.toDataURL('image/png');
-  };
 
   const { formattedCountdown, countdown } = useCountdown();
 

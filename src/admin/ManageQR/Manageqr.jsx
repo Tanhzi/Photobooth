@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import  { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import { FaEye } from 'react-icons/fa';
 import './Manageqr.css';
+import { apiGet } from '../../api';
 
 // === MODALs giữ nguyên ===
 const FrameImageModal = ({ isOpen, onClose, imageUrl }) => {
@@ -130,7 +131,7 @@ const Manageqr = () => {
     const saved = localStorage.getItem('auth');
     return saved ? JSON.parse(saved) : null;
   };
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const { id_admin, username } = auth || {};
 
   // === UI State ===
@@ -187,7 +188,7 @@ const Manageqr = () => {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/get-orders?id_admin=${id_admin}`);
+      const res = await apiGet('/get-orders');
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Lỗi ${res.status}: ${text.substring(0, 100)}`);
@@ -213,7 +214,7 @@ const Manageqr = () => {
     }
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/top-frames?id_admin=${id_admin}`);
+      const res = await apiGet('/top-frames');
       if (!res.ok) {
         const text = await res.text();
         console.error('Lỗi API top-frames:', text);

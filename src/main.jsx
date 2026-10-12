@@ -9,6 +9,9 @@ import './index.css';
 import RootLayout from './components/RootLayout';
 import AdminLayout from './layouts/AdminLayout';
 
+// Context
+import { DataCacheProvider } from './contexts/DataCacheContext';
+
 // Pages - Auth
 import App from './App'; // Trang đăng nhập
 import Register from './pages/Login/Register';
@@ -17,16 +20,16 @@ import ChangePassword from './pages/Login/ChangePassword';
 
 // Pages - Client flow
 import Appclien from './pages/Appclien/Appclien';
-import Choose from './pages/Choose/Choose';
-import Crecuts from './pages/Crecuts/Crecuts';
+import Print from './pages/Print/Print';
+import ChoosePackage from './pages/ChoosePackage/ChoosePackage';
 import Selphoto from './pages/Selphoto/Selphoto';
 import Photo from './pages/Photoo/Photo';
 import Frame from './pages/Frame/Frame';
 import Beframe from './pages/Beframe/Beframe';
 import Qr from './pages/Qrcode/Qr';
 import Discount from './pages/Discount/Discount';
-import Process from './pages/Process/Process';
-import Download from './pages/Download/Download';
+import Guide from './pages/Guide/Guide';
+import Feedback from './pages/Feedback/Feedback';
 
 // Admin
 import Appadmin from './admin/App/Appadmin';
@@ -135,19 +138,19 @@ const router = createHashRouter([
     errorElement: <ErrorPage />,
   },
   {
-    path: '/Choose',
+    path: '/Print',
     element: (
       <RootLayout>
-        <Choose />
+        <Print />
       </RootLayout>
     ),
     errorElement: <ErrorPage />,
   },
   {
-    path: '/Crecuts',
+    path: '/ChoosePackage',
     element: (
       <RootLayout>
-        <Crecuts />
+        <ChoosePackage />
       </RootLayout>
     ),
     errorElement: <ErrorPage />,
@@ -207,19 +210,19 @@ const router = createHashRouter([
     errorElement: <ErrorPage />,
   },
   {
-    path: '/Process',
+    path: '/Guide',
     element: (
       <RootLayout>
-        <Process />
+        <Guide />
       </RootLayout>
     ),
     errorElement: <ErrorPage />,
   },
   {
-    path: '/Download',
+    path: '/Feedback',
     element: (
       <RootLayout>
-        <Download />
+        <Feedback />
       </RootLayout>
     ),
     errorElement: <ErrorPage />,
@@ -352,7 +355,9 @@ const router = createHashRouter([
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <DataCacheProvider>
+        <RouterProvider router={router} />
+      </DataCacheProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

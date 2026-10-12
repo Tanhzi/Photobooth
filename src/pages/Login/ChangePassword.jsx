@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiPost } from '../../api';
 import './AuthCommon.css';
 
 function ChangePassword() {
@@ -50,15 +51,10 @@ function ChangePassword() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/change-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: auth.id,
-          old_password: oldPassword,
-          password: newPassword,
-          password_confirmation: confirmPassword,
-        }),
+      const response = await apiPost('/change-password', {
+        old_password: oldPassword,
+        password: newPassword,
+        password_confirmation: confirmPassword,
       });
 
       const data = await response.json();

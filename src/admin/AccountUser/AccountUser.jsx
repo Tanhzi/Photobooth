@@ -1,7 +1,8 @@
 // src/admin/Page/AccountUser/AccountUser.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './AccountUser.css';
+import { apiGet, apiPost, apiPut, apiDelete, invalidateCache } from '../../api';
 
 // ✅ HÀM RENDER HEADER TABLE — ĐẢM BẢO KHÔNG CÓ WHITESPACE
 const renderTableHeader = (selectAllGlobal, isCurrentPageFullySelected, toggleSelectAllGlobal) => (
@@ -106,7 +107,6 @@ const AccountUser = () => {
   const [selectAllGlobal, setSelectAllGlobal] = useState(false);
 
   const itemsPerPage = 10;
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
   const roleFilterRef = useRef(null);
 
@@ -115,11 +115,11 @@ const AccountUser = () => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/users?id_admin=${id_admin}&page=${page}&limit=${itemsPerPage}`;
+      let url = `/users?page=${page}&limit=${itemsPerPage}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
       if (roleFilter) url += `&role_filter=${encodeURIComponent(roleFilter)}`;
 
-      const res = await fetch(url);
+      const res = await apiGet(url);
       const data = await res.json();
       setUsers(data.data || []);
       setTotalPages(data.total_pages || 1);
@@ -141,7 +141,7 @@ const AccountUser = () => {
   const fetchTopics = async () => {
     if (!id_admin) return;
     try {
-      const res = await fetch(`${API_URL}/events-admin/${id_admin}`);
+      const res = await apiGet(`/events-admin`);
       const data = await res.json();
       if (data.success) {
         setTopics(data.data || []);
@@ -187,11 +187,11 @@ const AccountUser = () => {
       try {
         let allIds = [];
         for (let page = 1; page <= totalPages; page++) {
-          let url = `${API_URL}/users?id_admin=${id_admin}&page=${page}&limit=1000`;
+          let url = `/users?page=${page}&limit=1000`;
           if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
           if (roleFilter) url += `&role_filter=${encodeURIComponent(roleFilter)}`;
 
-          const res = await fetch(url);
+          const res = await apiGet(url);
           const data = await res.json();
           if (data.data?.length) {
             allIds = allIds.concat(data.data.map(u => u.id));
@@ -220,13 +220,10 @@ const AccountUser = () => {
     try {
       await Promise.all(
         selectedIds.map(id =>
-          fetch(`${API_URL}/users/${id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id_admin })
-          })
+          apiDelete(`/users/${id}`)
         )
       );
+      invalidateCache('/users');
       alert(`Đã xóa thành công ${selectedIds.length} tài khoản!`);
       setSelectedIds([]);
       setSelectAllGlobal(false);
@@ -279,8 +276,8 @@ const AccountUser = () => {
 
   const handleSubmit = async (isEdit = false) => {
     const url = isEdit
-      ? `${API_URL}/users/${selectedUser.id}`
-      : `${API_URL}/users`;
+      ? `/users/${selectedUser.id}`
+      : `/users`;
 
     if (!formData.username || !formData.email) {
       alert('Vui lòng nhập đầy đủ username và email!');
@@ -292,15 +289,11 @@ const AccountUser = () => {
     }
 
     try {
-      const res = await fetch(url, {
-        method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-
+      const res = await (isEdit ? apiPut(url, formData) : apiPost(url, formData));
       const result = await res.json();
 
       if (result.status === 'success') {
+        invalidateCache('/users');
         alert(isEdit ? 'Cập nhật thành công!' : 'Thêm thành công!');
         closeModals();
         fetchUsers(currentPage);
@@ -314,13 +307,10 @@ const AccountUser = () => {
 
   const handleDelete = async () => {
     try {
-      const res = await fetch(`${API_URL}/users/${selectedUser.id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_admin })
-      });
+      const res = await apiDelete(`/users/${selectedUser.id}`);
       const result = await res.json();
       if (result.status === 'success') {
+        invalidateCache('/users');
         alert('Xóa thành công!');
         closeModals();
         fetchUsers(currentPage);

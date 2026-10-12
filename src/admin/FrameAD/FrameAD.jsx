@@ -1,14 +1,15 @@
 // src/admin/Page/Setting2/Setting2.jsx
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './FrameAD.css';
+import { apiGet, apiDelete, invalidateCache } from '../../api';
 
 const FrameAD = () => {
   const getAuth = () => {
       const saved = localStorage.getItem('auth');
       return saved ? JSON.parse(saved) : null;
   };
-  const [auth, setAuth] = useState(getAuth());
+  const [auth, ] = useState(getAuth());
   const {id_admin, username: adminName } = auth || {};
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [frames, setFrames] = useState([]);
@@ -56,13 +57,12 @@ const FrameAD = () => {
   const imageCaptureRef = useRef(null);
   // States cho "Thử nghiệm"
   const [showUploadTestModal, setShowUploadTestModal] = useState(false);
-  const [testImage, setTestImage] = useState(null);
+  const [, setTestImage] = useState(null);
   // States chung cho preview kết quả
-  const [compositeImage, setCompositeImage] = useState(null);
+  const [, setCompositeImage] = useState(null);
   const [finalPreview, setFinalPreview] = useState(null);
   const [showResultPreview, setShowResultPreview] = useState(false);
   const itemsPerPage = 10;
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   const filterWrapperRef = useRef(null);
 
   // === LẤY DANH SÁCH KHUNG ẢNH ===
@@ -70,10 +70,10 @@ const FrameAD = () => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/frames?id_admin=${id_admin}&page=${page}&limit=${itemsPerPage}`;
+      let url = `/frames?page=${page}&limit=${itemsPerPage}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
       if (cut && cut !== 'all') url += `&cuts=${cut}`;
-      const res = await fetch(url);
+      const res = await apiGet(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.status === 'success') {
@@ -103,7 +103,7 @@ const FrameAD = () => {
   const fetchEvents = async () => {
     if (!id_admin) return;
     try {
-      const res = await fetch(`${API_URL}/events?id_admin=${id_admin}`);
+      const res = await apiGet('/events');
       if (!res.ok) throw new Error('Không tải được sự kiện');
       const data = await res.json();
       setEvents(data.data || []);
@@ -239,14 +239,19 @@ const FrameAD = () => {
     if (hasTypeChanged) formData.append('type', editFormData.type);
     if (hasCutsChanged) formData.append('cuts', editFormData.cuts);
     if (hasFileChanged) formData.append('frame', editFormData.frame);
+    const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+    const token = authObj.token;
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
     try {
-      const res = await fetch(`${API_URL}/frames/${selectedFrame.id}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/frames/${selectedFrame.id}`, {
         method: 'POST',
-        headers: { 'X-HTTP-Method-Override': 'PUT' },
+        headers: { ...authHeaders, 'X-HTTP-Method-Override': 'PUT' },
+        credentials: 'include',
         body: formData
       });
       const result = await res.json();
       if (res.ok && result.status === 'success') {
+        invalidateCache('/frames');
         alert('Cập nhật khung ảnh thành công!');
         closeModal();
         fetchFrames(currentPage, searchTerm, filterCut);
@@ -277,7 +282,9 @@ const FrameAD = () => {
       return;
     }
     const formData = new FormData();
-    formData.append('id_admin', id_admin);
+    const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+    const token = authObj.token;
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
     frameForms.forEach((form, idx) => {
       formData.append(`frames[${idx}][id_topic]`, form.id_topic);
       formData.append(`frames[${idx}][type]`, form.type);
@@ -285,12 +292,15 @@ const FrameAD = () => {
       formData.append(`frames[${idx}][frame]`, form.frame);
     });
     try {
-      const res = await fetch(`${API_URL}/frames`, {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/frames`, {
         method: 'POST',
+        headers: authHeaders,
+        credentials: 'include',
         body: formData
       });
       const result = await res.json();
       if (res.ok) {
+        invalidateCache('/frames');
         alert(`Thêm thành công ${frameForms.length} khung ảnh!`);
         closeModal();
         fetchFrames(currentPage, searchTerm, filterCut);
@@ -305,8 +315,9 @@ const FrameAD = () => {
   const handleDelete = async (id) => {
     if (!confirm('Xóa khung ảnh này?\nDữ liệu sẽ mất vĩnh viễn!')) return;
     try {
-      const res = await fetch(`${API_URL}/frames/${id}`, { method: 'DELETE' });
+      const res = await apiDelete(`/frames/${id}`);
       if (res.ok) {
+        invalidateCache('/frames');
         alert('Xóa thành công!');
         setSelectedIds(prev => prev.filter(x => x !== id));
         if (selectedFrame?.id === id) {
@@ -365,11 +376,11 @@ const FrameAD = () => {
       try {
         let allIds = [];
         for (let page = 1; page <= totalPages; page++) {
-          let url = `${API_URL}/frames?id_admin=${id_admin}&page=${page}&limit=1000`;
+          let url = `/frames?page=${page}&limit=1000`;
           if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
           if (filterCut && filterCut !== 'all') url += `&cuts=${filterCut}`;
 
-          const res = await fetch(url);
+          const res = await apiGet(url);
           const data = await res.json();
           if (data.status === 'success') {
             allIds = allIds.concat(data.data.map(f => f.id));
@@ -398,7 +409,8 @@ const FrameAD = () => {
     if (!confirm(`Xóa vĩnh viễn ${selectedIds.length} khung ảnh đã chọn?\nDữ liệu sẽ mất vĩnh viễn!`)) return;
 
     try {
-      await Promise.all(selectedIds.map(id => fetch(`${API_URL}/frames/${id}`, { method: 'DELETE' })));
+      await Promise.all(selectedIds.map(id => apiDelete(`/frames/${id}`)));
+      invalidateCache('/frames');
       alert(`Đã xóa thành công ${selectedIds.length} khung ảnh!`);
       setSelectedIds([]);
       setSelectAllGlobal(false);
@@ -415,6 +427,7 @@ const FrameAD = () => {
   // HÀM PHÂN TÍCH KHUNG ẢNH ĐỂ TÌM VỊ TRÍ CÁC Ô TRỐNG
   // ===============================================
   const analyzeFrameSlots = async (frameSrc, cutValue, onProgress) => {
+    // eslint-disable-next-line no-async-promise-executor
     return new Promise(async (resolve, reject) => {
       try {
         if (onProgress) onProgress('Đang tải khung ảnh...');
@@ -649,7 +662,7 @@ const FrameAD = () => {
 
   useEffect(() => {
     if (!id_admin) return;
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/camera/basic?id_admin=${id_admin}`)
+    apiGet(`/camera/basic?id_admin=${id_admin}`)
       .then((res) => res.json())
       .then((data) => {
         if (!data) return;

@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import Navbar from '../../components/Navbar';
 import './AiTopic.css';
+import { apiGet, apiDelete, invalidateCache } from '../../api';
 
 const AiTopic = () => {
   const getAuth = () => {
@@ -55,7 +56,6 @@ const AiTopic = () => {
     id_topic: '', // ← THÊM
   });
 
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
   const AI_URL = import.meta.env.VITE_AI_API_URL || 'http://localhost:5000';
   const filterWrapperRef = useRef(null);
 
@@ -64,7 +64,7 @@ const AiTopic = () => {
     if (!id_admin) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/ai-topics?id_admin=${id_admin}`);
+      const res = await apiGet('/ai-topics');
       const data = await res.json();
       
       if (data.status === 'success') {
@@ -86,7 +86,7 @@ const AiTopic = () => {
   const fetchEvents = async () => {
     if (!id_admin) return;
     try {
-      const res = await fetch(`${API_URL}/events-admin/${id_admin}`);
+      const res = await apiGet(`/events-admin`);
       const data = await res.json();
       if (data.success) {
         setEvents(data.data || []);
@@ -141,7 +141,7 @@ const AiTopic = () => {
     
     setFormData(prev => ({ ...prev, isGenerating: true }));
     try {
-      const res = await fetch(`http://localhost:5000/admin-generate-image`, {
+      const res = await fetch(`${AI_URL}/admin-generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: formData.prompt })
@@ -233,26 +233,30 @@ const AiTopic = () => {
     const payload = new FormData();
     if (isUpdate) payload.append('_method', 'PUT');
     
-    payload.append('id_admin', id_admin);
     payload.append('name', formData.name);
     payload.append('topic', formData.topic);
     payload.append('type', formData.type);
     payload.append('status', formData.status);
     
     if (formData.prompt) payload.append('prompt', formData.prompt);
-    if (formData.id_topic) payload.append('id_topic', formData.id_topic); // ← THÊM
+    if (formData.id_topic) payload.append('id_topic', formData.id_topic);
 
     if (formData.illustration) {
       payload.append('illustration', formData.illustration);
     }
 
-    const url = isUpdate ? `${API_URL}/ai-topics/${selectedTopic.id}` : `${API_URL}/ai-topics`;
+    const url = isUpdate ? `/ai-topics/${selectedTopic.id}` : `/ai-topics`;
+    const authObj = JSON.parse(localStorage.getItem('auth') || '{}');
+    const token = authObj.token;
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     try {
-      const res = await fetch(url, { method: 'POST', body: payload });
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}${url}`, { method: 'POST', headers: authHeaders, credentials: 'include', body: payload });
       const result = await res.json();
       
       if (result.status === 'success') {
+        invalidateCache('/ai-topics');
+        invalidateCache('/events-admin');
         alert(result.message);
         setShowAddModal(false);
         setShowEditModal(false);
@@ -270,7 +274,8 @@ const AiTopic = () => {
     if (!confirm(`Xóa ${selectedIds.length} mục?`)) return;
     
     try {
-      await Promise.all(selectedIds.map(id => fetch(`${API_URL}/ai-topics/${id}`, { method: 'DELETE' })));
+      await Promise.all(selectedIds.map(id => apiDelete(`/ai-topics/${id}`)));
+      invalidateCache('/ai-topics');
       setSelectedIds([]);
       setSelectAll(false);
       fetchAllTopics();
@@ -373,7 +378,8 @@ const AiTopic = () => {
                           className="delete-btn" 
                           onClick={async () => { 
                             if (confirm('Xóa?')) { 
-                              await fetch(`${API_URL}/ai-topics/${t.id}`, { method: 'DELETE' }); 
+                              await apiDelete(`/ai-topics/${t.id}`);
+                              invalidateCache('/ai-topics');
                               fetchAllTopics(); 
                             } 
                           }}

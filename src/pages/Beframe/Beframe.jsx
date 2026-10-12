@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import  { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Chatbot from '../../components/Chatbot';
 import './Beframe.css';
@@ -121,7 +121,7 @@ function Beframe() {
     const selectedFrame = filteredFrames[currentFrameIndex];
     if (!selectedFrame.frame) return;
 
-    navigate('/Photo', {
+    navigate('/Guide', {
       state: {
         selectedFrame: selectedFrame.frame,
         selectedFrameId: selectedFrame.id,
@@ -136,13 +136,7 @@ function Beframe() {
   };
 
   // Chuyển khung ảnh
-  const handlePrevFrame = () => {
-    setCurrentFrameIndex(prev => (prev === 0 ? filteredFrames.length - 1 : prev - 1));
-  };
 
-  const handleNextFrame = () => {
-    setCurrentFrameIndex(prev => (prev === filteredFrames.length - 1 ? 0 : prev + 1));
-  };
 
   // Ảnh khung đang được chọn
   const currentFrameSrc = filteredFrames[currentFrameIndex]?.frame || null;

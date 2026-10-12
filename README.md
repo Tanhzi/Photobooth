@@ -25,7 +25,6 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 - [Xác thực & phân quyền](#xác-thực--phân-quyền)
 - [Caching phía client](#caching-phía-client)
-- [Triển khai (Vercel)](#triển-khai-vercel)
 - [Chất lượng mã](#chất-lượng-mã)
 - [Ghi chú](#ghi-chú)
 - [Giấy phép](#giấy-phép)
@@ -45,12 +44,12 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
 
 ```
 ┌─────────────────────────────┐
-│   SweetLens Frontend (FE)   │  React 19 + Vite — triển khai Vercel
+│   SweetLens Frontend (FE)   │  React 19 + Vite
 └──────────┬──────────────────┘
            │ VITE_API_BASE_URL (cookie httpOnly + credentials: 'include')
            ▼
 ┌─────────────────────────────┐
-│  Backend API (repo riêng)   │  Laravel 12 — Render/Supabase
+│  Backend API (repo riêng)   │  Laravel 12 + PostgreSQL
 └─────────────────────────────┘
 
 ┌─────────────────────────────┐
@@ -65,7 +64,7 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
 ```
 
 - FE **không dùng dev proxy** — gọi thẳng `VITE_API_BASE_URL` (backend phải cho CORS origin `http://localhost:5173`).
-- Máy admin dùng `VITE_AI_API_URL` (Vercel → ngrok → bridge); máy kiosk đặt `VITE_BRIDGE_URL`.
+- Máy admin dùng `VITE_AI_API_URL` (URL ngrok của bridge); máy kiosk đặt `VITE_BRIDGE_URL`.
 
 ## Tính năng
 
@@ -143,12 +142,11 @@ Tạo file `.env` từ `.env.example`:
 
 | Biến | Mô tả | Giá trị |
 |---|---|---|
-| `VITE_API_BASE_URL` | URL backend kèm tiền tố `/api` | Dev: `http://localhost:8000/api` · Prod: `https://dslr-api.onrender.com/api` |
-| `VITE_AI_API_URL` | Bridge cho admin AI (Vercel → ngrok) | `http://localhost:5000` hoặc URL ngrok |
+| `VITE_API_BASE_URL` | URL backend kèm tiền tố `/api` | Dev: `http://localhost:8000/api` · Prod: `https://<backend-domain>/api` |
+| `VITE_AI_API_URL` | Bridge cho admin AI (qua ngrok) | `http://localhost:5000` hoặc URL ngrok |
 | `VITE_BRIDGE_URL` | Bridge cho kiosk; bỏ trống sẽ fallback `VITE_AI_API_URL` | — |
 
 > `.env` bị gitignore — chỉ commit `.env.example` (không chứa secret).
-> **Không** đặt `/api` (relative) cho production: FE gọi **trực tiếp** Render vì upload ảnh + GIF base64 1 request có thể vượt 4.5MB — giới hạn body của Vercel (rewrite/proxy sẽ trả 413).
 
 ## Các lệnh phổ biến
 
@@ -192,32 +190,6 @@ sweetlens/
 - **In-memory cache** cho request GET (TTL 5 phút, cấu hình theo request).
 - `invalidateCache(pattern)` tự gọi sau mọi mutation (POST/PUT/DELETE) trong component admin.
 - Cache hit trả về object `Response` giả lập → `res.json()`, `res.ok` hoạt động bình thường.
-
-## Triển khai (Vercel)
-
-1. Import repo → Framework **Vite** (build `npm run build`, output `dist`).
-2. Cấu hình Environment Variables:
-   - `VITE_API_BASE_URL` = `https://dslr-api.onrender.com/api` (**gọi trực tiếp**, xem chú ý bên dưới)
-   - `VITE_AI_API_URL` = URL ngrok của bridge (nếu dùng admin AI trên web)
-3. HashRouter (`/#/path`) nên **không cần** cấu hình rewrite rule trên hosting tĩnh.
-
-### Checklist kết nối FE ↔ BE an toàn (cookie JWT)
-
-FE (Vercel) gọi thẳng BE (Render) — **cross-site**:
-
-| Việc | Trên Render (BE env) |
-|---|---|
-| Whitelist origin FE | `CORS_ORIGINS=https://<fe>.vercel.app,http://localhost:5173` |
-| Cookie hoạt động cross-site | `JWT_COOKIE_SAMESITE=None` (attr `Secure` tự thêm — HTTPS bắt buộc, Render đã có) |
-| TTL token | `JWT_TTL=60` (phút), `JWT_REFRESH_GRACE=10080` (7 ngày) |
-
-> **Không dùng Vercel rewrites** (`/api/:path*` → backend) cho project này:
-> `POST /api/media` gửi toàn bộ ảnh + GIF base64 trong **1 request** (vài MB) —
-> vượt giới hạn body 4.5MB của Vercel → 413. Gọi trực tiếp Render (đã set
-> upload 64M/128M) là chắc chắn nhất.
->
-> Dev local không cần gì thêm: `localhost:5173` → `localhost:8000` là
-> cross-origin (cần CORS — mặc định đã có) nhưng **cùng site** → cookie `lax` hoạt động.
 
 ## Chất lượng mã
 

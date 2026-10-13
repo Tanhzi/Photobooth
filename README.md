@@ -25,7 +25,6 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
 - [Cấu trúc thư mục](#cấu-trúc-thư-mục)
 - [Xác thực & phân quyền](#xác-thực--phân-quyền)
 - [Caching phía client](#caching-phía-client)
-- [Chất lượng mã](#chất-lượng-mã)
 - [Ghi chú](#ghi-chú)
 - [Giấy phép](#giấy-phép)
 
@@ -62,9 +61,6 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
            │ VITE_BRIDGE_URL
       Kiosk (máy chụp tại booth)
 ```
-
-- FE **không dùng dev proxy** — gọi thẳng `VITE_API_BASE_URL` (backend phải cho CORS origin `http://localhost:5173`).
-- Máy admin dùng `VITE_AI_API_URL` (URL ngrok của bridge); máy kiosk đặt `VITE_BRIDGE_URL`.
 
 ## Tính năng
 
@@ -144,7 +140,6 @@ Tạo file `.env` từ `.env.example`:
 | `VITE_AI_API_URL` | Bridge cho admin AI (qua ngrok) | `http://localhost:5000` hoặc URL ngrok |
 | `VITE_BRIDGE_URL` | Bridge cho kiosk; bỏ trống sẽ fallback `VITE_AI_API_URL` | — |
 
-> `.env` bị gitignore — chỉ commit `.env.example` (không chứa secret).
 
 ## Các lệnh phổ biến
 
@@ -189,17 +184,10 @@ sweetlens/
 - `invalidateCache(pattern)` tự gọi sau mọi mutation (POST/PUT/DELETE) trong component admin.
 - Cache hit trả về object `Response` giả lập → `res.json()`, `res.ok` hoạt động bình thường.
 
-## Chất lượng mã
-
-- `npm run lint` — **0 error** (73 warning `react-hooks/exhaustive-deps` giữ có chủ đích để không đổi hành vi).
-- Đã dọn biến/hàm không dùng; file bản sao ngoài luồng (`Qr copy.jsx`, `Selphoto copy.jsx`) không được import nên không ảnh hưởng build.
-
 ## Ghi chú
 
-- **Chatbot:** gọi `POST /api/chat` của backend — backend tự nạp dữ liệu `content_chat` (theo `id_admin`, cache 10 phút) rồi gọi OpenRouter (model free, có fallback).
-- **Máy ảnh/máy in:** kiosk giao tiếp qua bridge cục bộ `serverr` (`VITE_BRIDGE_URL`); không cài bridge thì chỉ mất chức năng chụp/in tại booth.
-- **Trang `FrameAD`:** thử khung với camera trực tiếp (cần cấp quyền webcam).
-- **Kiosk:** thiết kế cho màn hình cảm ứng dọc.
+- **Chạy dịch vụ** cần file server local để hoàn thiện các chức năng (chụp ảnh, đầu đọc tiền, máy in, các chức năng làm nét,...)
+
 
 ## Giấy phép
 

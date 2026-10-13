@@ -117,8 +117,6 @@ Giao diện hệ thống **Photo Booth SweetLens** — màn hình kiosk tự ph�
 | gifshot / qrcode | ^0.4 / ^1.5 | Tạo GIF & QR trong trang QR |
 | ESLint | ^9.19 | Kiểm tra mã (flat config) |
 
-> **Lưu ý deps chưa dùng:** `firebase`, `sharp`, `simple-keyboard`, `qrcode.react`, `react-apexcharts`, `bootstrap` (package — UI tải Bootstrap qua CDN trong `index.html`) hiện chưa được import trong `src/` — có thể gỡ bằng `npm uninstall` nếu muốn giảm cài đặt.
-
 ## Yêu cầu hệ thống
 
 - Node.js >= 18 và npm
@@ -194,7 +192,7 @@ sweetlens/
 ## Chất lượng mã
 
 - `npm run lint` — **0 error** (73 warning `react-hooks/exhaustive-deps` giữ có chủ đích để không đổi hành vi).
-- Dòng code chết (file copy, biến không dùng) đã dọn; file dead code được giữ lại theo yêu cầu.
+- Đã dọn biến/hàm không dùng; file bản sao ngoài luồng (`Qr copy.jsx`, `Selphoto copy.jsx`) không được import nên không ảnh hưởng build.
 
 ## Ghi chú
 

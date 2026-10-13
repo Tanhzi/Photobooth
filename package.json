@@ -12,19 +12,13 @@
   "dependencies": {
     "@tanstack/react-query": "^5.90.2",
     "apexcharts": "^5.3.6",
-    "bootstrap": "^5.3.3",
-    "firebase": "^11.6.1",
     "gifshot": "^0.4.5",
     "lottie-react": "^2.4.1",
     "qrcode": "^1.5.4",
-    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
-    "react-apexcharts": "^1.8.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
-    "react-router-dom": "^7.1.5",
-    "sharp": "^0.34.1",
-    "simple-keyboard": "^3.8.89"
+    "react-router-dom": "^7.1.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
